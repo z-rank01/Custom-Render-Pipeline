@@ -5,6 +5,11 @@ using UnityEngine.Rendering;
 
 public class CustomRenderPipeline : RenderPipeline
 {
+    public CustomRenderPipeline() : base() 
+    {
+        // use SRP batching
+        GraphicsSettings.useScriptableRenderPipelineBatching = true;
+    }
     protected override void Render(ScriptableRenderContext context, Camera[] cameras)
     {
         // ignore this
