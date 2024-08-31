@@ -1,0 +1,6 @@
+{
+  "hlsl.additionalIncludeDirectories": [
+    "E:\\Program Files\\Unity\\Editor\\2022.3.2f1\\Editor\\Data\\CGIncludes", 
+    "E:\\Program Files\\Unity\\Editor\\2022.3.2f1\\Editor\\Data\\Resources\\PackageManager\\BuiltInPackages"
+  ]
+}

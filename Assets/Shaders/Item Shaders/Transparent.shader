@@ -1,4 +1,4 @@
-Shader "Unlit/Transparent"
+Shader "CustomRenderPipeline/UnlitTransparent"
 {
     Properties
     {
@@ -6,7 +6,7 @@ Shader "Unlit/Transparent"
     }
     SubShader
     {
-        Tags { "RenderType"="Opaque" }
+        Tags { "RenderType"="Transparent" }
         LOD 100
 
         Pass
