@@ -7,16 +7,14 @@ Shader "CustomRenderPipeline/Unlit"
     }
     SubShader
     {
-        Tags { "RenderType"="Opaque" }
-        LOD 100
-
         Pass
         {
             CGPROGRAM
+            #pragma multi_compile_instancing
             #pragma vertex vert
             #pragma fragment frag
 
-            #include "../../HLSL/Unlit.hlsl"
+            #include "Assets/HLSL/Unlit.hlsl"
             ENDCG
         }
     }

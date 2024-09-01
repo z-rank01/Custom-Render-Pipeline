@@ -40,9 +40,9 @@ public partial class CameraRenderer
         SetUpBuffer();
     }
 
-    public void Render()
+    public void Render(bool useDynamicBatching, bool useGPUInstancing)
     {
-        DrawVisibleGeometry();
+        DrawVisibleGeometry(useDynamicBatching, useGPUInstancing);
         DrawUnsupportedShader();
         DrawGizmo();
         Submit();
@@ -80,7 +80,7 @@ public partial class CameraRenderer
     }
     
     // render 
-    private void DrawVisibleGeometry()
+    private void DrawVisibleGeometry(bool useDynamicBatching, bool useGPUInstancing)
     {
         // how to sort
         SortingSettings sortingSettings = new SortingSettings(m_camera);
@@ -91,7 +91,10 @@ public partial class CameraRenderer
         
         // what and how to draw
         DrawingSettings drawingSettings = new DrawingSettings(unlitShaderTagId, sortingSettings);
-
+        drawingSettings.enableInstancing = useGPUInstancing;
+        drawingSettings.enableDynamicBatching = useDynamicBatching;
+        
+        
         // draw opaque
         m_context.DrawRenderers(cullingResults, ref drawingSettings, ref filteringSettings);
         m_context.DrawSkybox(m_camera);
