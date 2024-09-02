@@ -3,20 +3,20 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-
-[CreateAssetMenu(menuName = "Rendering/Custom Render Pipeline")]
-public class CustomRenderPipelineAsset : RenderPipelineAsset
+namespace Custom_Render_Pipeline.Runtime
 {
-    [SerializeField] 
-    private bool useDynamicBatching = true;
-
-    [SerializeField] 
-    private bool useGPUInstancing = true;
-    
-    [SerializeField]
-    private bool useSRPBatcher = true;
-    protected override RenderPipeline CreatePipeline()
+    [CreateAssetMenu(menuName = "Rendering/Custom Render Pipeline")]
+    public class CustomRenderPipelineAsset : RenderPipelineAsset
     {
-        return new CustomRenderPipeline(useGPUInstancing, useSRPBatcher, useDynamicBatching);
+        [SerializeField] private bool useDynamicBatching = true;
+
+        [SerializeField] private bool useGPUInstancing = true;
+
+        [SerializeField] private bool useSRPBatcher = true;
+
+        protected override RenderPipeline CreatePipeline()
+        {
+            return new CustomRenderPipeline(useGPUInstancing, useSRPBatcher, useDynamicBatching);
+        }
     }
 }

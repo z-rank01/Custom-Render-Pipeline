@@ -64,9 +64,9 @@ Material:
     m_Floats:
     - _BumpScale: 1
     - _Clipping: 1
-    - _Cutoff: 0.21
+    - _Cutoff: 0
     - _DetailNormalMapScale: 1
-    - _DstBlend: 2
+    - _DstBlend: 10
     - _GlossMapScale: 1
     - _Glossiness: 0.5
     - _GlossyReflections: 1
@@ -76,7 +76,7 @@ Material:
     - _Parallax: 0.02
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
-    - _SrcBlend: 3
+    - _SrcBlend: 5
     - _UVSec: 0
     - _ZWrite: 0
     m_Colors:
