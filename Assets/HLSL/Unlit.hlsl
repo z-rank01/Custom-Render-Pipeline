@@ -53,14 +53,14 @@ fixed4 frag(v2f i) : SV_Target
 // support SPR Batcher
 struct appdata
 {
-    float4 vertexOS : POSITION;
-    float2 uv : TEXCOORD0;
+    half4 vertexOS : POSITION;
+    fixed2 uv : TEXCOORD0;
 };
 
 struct v2f
 {
-    float4 vertexCS : SV_POSITION;
-    float2 uv : TEXCOORD0;
+    half4 vertexCS : SV_POSITION;
+    fixed2 uv : TEXCOORD0;
 };
 
 // To reduce "setPass call", 
@@ -72,8 +72,8 @@ struct v2f
 // CBUFFER_END
 CBUFFER_START(UnityPerMaterial)
 sampler2D _MainTex;
-float4 _MainTex_ST;
-float4 _BaseColor;
+half4 _MainTex_ST;
+fixed4 _BaseColor;
 CBUFFER_END
 
 v2f vert(appdata v)

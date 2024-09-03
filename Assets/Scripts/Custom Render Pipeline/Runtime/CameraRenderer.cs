@@ -17,7 +17,7 @@ namespace Custom_Render_Pipeline.Runtime
         private Lighting m_lighting;
 
         private static ShaderTagId unlitShaderTagId = new ShaderTagId("SRPDefaultUnlit");
-        private static ShaderTagId litLightShaderTagId = new ShaderTagId("CustomLit");
+        private static ShaderTagId simpleLitLightShaderTagId = new ShaderTagId("SimpleLit");
 
         // interface
         public void SetUp(ScriptableRenderContext context, Camera camera)
@@ -97,7 +97,7 @@ namespace Custom_Render_Pipeline.Runtime
             DrawingSettings drawingSettings = new DrawingSettings(unlitShaderTagId, sortingSettings);
             drawingSettings.enableInstancing = useGPUInstancing;
             drawingSettings.enableDynamicBatching = useDynamicBatching;
-            drawingSettings.SetShaderPassName(1, litLightShaderTagId);
+            drawingSettings.SetShaderPassName(1, simpleLitLightShaderTagId);
             
             // draw opaque
             m_context.DrawRenderers(m_cullingResults, ref drawingSettings, ref filteringSettings);
