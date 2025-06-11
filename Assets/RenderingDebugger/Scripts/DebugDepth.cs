@@ -55,19 +55,15 @@ namespace RenderingDebugger.Scripts
                 
                 using (new ProfilingScope(cmd, _profilingSampler))
                 {
-                    // 使用 Blit 代替 CopyTexture，可以处理格式转换
                     cmd.Blit(colorTarget.rt, _tempColorTarget);
                     
-                    // 设置渲染目标为原始的颜色目标
                     cmd.SetRenderTarget(colorTarget);
                     
-                    // 设置shader参数，使用临时目标作为输入
                     cmd.SetGlobalTexture(DebugConstant.DebugColorInputId, _tempColorTarget);
                     cmd.SetGlobalFloat(DebugConstant.DebugDisplayHeightRatioId, _settings.DisplayHeightRatio);
                     cmd.SetGlobalInt(DebugConstant.DebugScreenWidthId, renderingData.cameraData.cameraTargetDescriptor.width);
                     cmd.SetGlobalInt(DebugConstant.DebugScreenHeightId, renderingData.cameraData.cameraTargetDescriptor.height);
                     
-                    // 使用 Blitter 方式绘制全屏三角形
                     cmd.DrawProcedural(Matrix4x4.identity, _debugSplitMaterial, 0, MeshTopology.Triangles, 3, 1);
                 }
                 

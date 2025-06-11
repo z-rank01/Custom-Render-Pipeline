@@ -1,4 +1,4 @@
-Shader "RenderingDebugger/DepthDepth"
+Shader "RenderingDebugger/DebugDepth"
 {
     HLSLINCLUDE
 
