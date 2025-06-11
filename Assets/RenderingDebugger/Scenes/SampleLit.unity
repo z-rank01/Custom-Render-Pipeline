@@ -1789,6 +1789,17 @@ PrefabInstance:
       propertyPath: m_MovementSpeed
       value: 4
       objectReference: {fileID: 0}
+    - target: {fileID: 8900132868616544278, guid: 8089b5fe6d8304423814ff197221f77d,
+        type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8900132868616544278, guid: 8089b5fe6d8304423814ff197221f77d,
+        type: 3}
+      propertyPath: m_PipelineAsset
+      value: 
+      objectReference: {fileID: 11400000, guid: 391cf2cfe4f474244b4194e07cb4c6c0,
+        type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
