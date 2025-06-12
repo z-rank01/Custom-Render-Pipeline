@@ -10,6 +10,7 @@ namespace RenderingDebugger.Scripts
         public static readonly int DebugSaturationThresholdId = Shader.PropertyToID("_DebugSaturationThreshold");
 
         // Debug Overdraw 着色器属性ID
-        public static readonly int DebugOverdrawColorId = Shader.PropertyToID("_OverdrawColor");
+        public static readonly int DebugOverdrawColorId = Shader.PropertyToID("_DebugOverdrawColor");
+        public static readonly int DebugOverdrawResultId = Shader.PropertyToID("_DebugOverdrawResult");
     }
 }

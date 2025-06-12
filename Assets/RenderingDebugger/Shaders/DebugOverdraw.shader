@@ -20,7 +20,7 @@ Shader "RenderingDebugger/DebugOverdraw"
             
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             
-            float4 _OverdrawColor;
+            float4 _DebugOverdrawColor;
             
             struct Attributes
             {
@@ -41,7 +41,7 @@ Shader "RenderingDebugger/DebugOverdraw"
             
             float4 frag(Varyings input) : SV_Target
             {
-                return _OverdrawColor;
+                return _DebugOverdrawColor;
             }
             ENDHLSL
         }

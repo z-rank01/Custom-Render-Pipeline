@@ -60,20 +60,16 @@ namespace RenderingDebugger.Scripts
                 var colorTarget = cameraData.renderer.cameraColorTargetHandle;
 
                 var cmd = CommandBufferPool.Get(ProfilerTag);
-
                 using (new ProfilingScope(cmd, _profilingSampler))
                 {
                     cmd.Blit(colorTarget.rt, _tempRenderTarget);
 
-                    cmd.SetRenderTarget(colorTarget);
-
                     cmd.SetGlobalTexture(DebugConstant.DebugColorInputId, _tempRenderTarget);
                     cmd.SetGlobalFloat(DebugConstant.DebugDisplayHeightRatioId, _settings.DisplayHeightRatio);
                     cmd.SetGlobalInt(DebugConstant.DebugSaturationThresholdId, _settings.DepthDetectionThreshold);
-
+                    cmd.SetRenderTarget(colorTarget);
                     cmd.DrawProcedural(Matrix4x4.identity, _debugSplitMaterial, 0, MeshTopology.Triangles, 3, 1);
                 }
-
                 context.ExecuteCommandBuffer(cmd);
                 CommandBufferPool.Release(cmd);
             }

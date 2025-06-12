@@ -15,7 +15,9 @@ MonoBehaviour:
   m_Active: 1
   debugOverdrawMaterial: {fileID: 2100000, guid: 0d710be45eae1cf4eaa74de319ba956f,
     type: 2}
-  overdrawDetectionThreshold: 20
+  debugSplitMaterial: {fileID: 2100000, guid: 7b8aab5f849033f468f1f4a553548b4c, type: 2}
+  overdrawDetectionThreshold: 30
+  debugDisplayHeightRatio: 0.5
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -72,7 +74,7 @@ MonoBehaviour:
     passOperation: 2
     failOperation: 0
     zFailOperation: 0
-  m_ShadowTransparentReceive: 1
+  m_ShadowTransparentReceive: 0
   m_RenderingMode: 0
   m_DepthPrimingMode: 0
   m_CopyDepthMode: 1
@@ -92,3 +94,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Active: 0
   debugDepthMaterial: {fileID: 2100000, guid: 67ef3e38f748f5349b54d2339e5008de, type: 2}
+  displayHeightRatio: 0.5
+  depthDetectionThreshold: 20

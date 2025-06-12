@@ -1,3 +1,4 @@
+using RenderingDebugger.Scripts;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -7,22 +8,27 @@ using UnityEngine.Rendering.Universal;
 public class DebugOverdraw : ScriptableRendererFeature
 {
     [SerializeField] private Material debugOverdrawMaterial;
+    [SerializeField] private Material debugSplitMaterial;
 
     [Tooltip(@"Overdraw detection threshold. 
 Note: This value determines how many times a pixel can be drawn until it cannot be accmulated (completely white). For example, if set to 10, a pixel can be drawn up to 10 times and it will not be counted for rest of drawcalls."
     )]
     [SerializeField] private int overdrawDetectionThreshold = 20; // Threshold for overdraw detection
+    [SerializeField, Range(0.1f, 1f)] private float debugDisplayHeightRatio = 0.5f; // Ratio of the display height to use for overdraw visualization
+
 
     internal readonly struct DebugOverdrawSettings
     {
         public readonly bool EnableDebugOverdraw;
         public readonly int OverdrawDetectionThreshold;
+        public readonly float DebugDisplayHeightRatio;
         public readonly Color debugOverdrawColor;
-        public DebugOverdrawSettings(bool enableDebugOverdraw, int overdrawDetectionThreshold)
+        public DebugOverdrawSettings(bool enableDebugOverdraw, int overdrawDetectionThreshold, float debugDisplayHeightRatio)
         {
             EnableDebugOverdraw = enableDebugOverdraw;
             OverdrawDetectionThreshold = overdrawDetectionThreshold;
             debugOverdrawColor = new Color(1f / overdrawDetectionThreshold, 1f / overdrawDetectionThreshold, 1f / overdrawDetectionThreshold, 1f);
+            DebugDisplayHeightRatio = debugDisplayHeightRatio;
         }
     }
 
@@ -30,12 +36,15 @@ Note: This value determines how many times a pixel can be drawn until it cannot 
     {
         private const string ProfilerTag = "Debug Overdraw";
         private RTHandle _tempRenderTarget;
+        private RTHandle _sourceRenderTarget;
         private readonly Material _debugOverdrawMaterial;
+        private readonly Material _debugSplitMaterial;
         private readonly DebugOverdrawSettings _settings;
 
-        public DebugOverdrawPass(Material debugOverdrawMaterial, DebugOverdrawSettings settings)
+        public DebugOverdrawPass(Material debugOverdrawMaterial, Material debugSplitMaterial, DebugOverdrawSettings settings)
         {
             _debugOverdrawMaterial = debugOverdrawMaterial;
+            _debugSplitMaterial = debugSplitMaterial;
             _settings = settings;
         }
 
@@ -53,10 +62,12 @@ Note: This value determines how many times a pixel can be drawn until it cannot 
             cameraTargetDescriptor.depthBufferBits = 0;
             RenderingUtils.ReAllocateIfNeeded(ref _tempRenderTarget, cameraTargetDescriptor,
                 FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_DebugOverdrawTarget");
+            RenderingUtils.ReAllocateIfNeeded(ref _sourceRenderTarget, cameraTargetDescriptor,
+                FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_DebugOverdrawSource");
 
             // configure the render pass to use the temporary render target
-            ConfigureTarget(_tempRenderTarget);
-            ConfigureClear(ClearFlag.All, Color.black);
+            // ConfigureTarget(_tempRenderTarget);
+            // ConfigureClear(ClearFlag.All, Color.black);
 
             // set up the render pass event
             base.profilingSampler = new ProfilingSampler(ProfilerTag);
@@ -70,29 +81,42 @@ Note: This value determines how many times a pixel can be drawn until it cannot 
 
             var cmd = CommandBufferPool.Get(ProfilerTag);
 
+            // get the camera color target and set it as the source render target
+            using (new ProfilingScope(cmd, base.profilingSampler))
+            {
+                // set the temporary render target as the active render target
+                cmd.SetRenderTarget(_sourceRenderTarget);
+                cmd.Blit(renderingData.cameraData.renderer.cameraColorTargetHandle, _sourceRenderTarget);
+                context.ExecuteCommandBuffer(cmd);
+                cmd.Clear();
+            }
+
             // set up the debug overdraw material
             using (new ProfilingScope(cmd, new ProfilingSampler("Setup Overdraw Parameters")))
             {
-                cmd.SetGlobalColor("_OverdrawColor", _settings.debugOverdrawColor);
+                cmd.SetGlobalColor(DebugConstant.DebugOverdrawColorId, _settings.debugOverdrawColor);
+                cmd.SetRenderTarget(_tempRenderTarget);
+                cmd.ClearRenderTarget(true, true, Color.clear);
+                context.ExecuteCommandBuffer(cmd);
+                cmd.Clear();
             }
-            context.ExecuteCommandBuffer(cmd);
-            cmd.Clear();
-
             // draw renderers with debug overdraw material
             var sortingSettings = CreateSortingSettings(ref renderingData);
             var drawingSettings = CreateDrawingSettings(ref renderingData, sortingSettings);
             var filteringSettings = CreateFilteringSettings(ref renderingData);
             var renderStateBlock = CreateRenderStateBlock();
-
             context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref filteringSettings, ref renderStateBlock);
 
             // blit the result to the camera color target
             using (new ProfilingScope(cmd, new ProfilingSampler("Blit Overdraw Result")))
             {
                 var cameraColorTarget = renderingData.cameraData.renderer.cameraColorTargetHandle;
-                cmd.Blit(_tempRenderTarget, cameraColorTarget);
+                cmd.SetGlobalFloat(DebugConstant.DebugDisplayHeightRatioId, _settings.DebugDisplayHeightRatio);
+                cmd.SetGlobalTexture(DebugConstant.DebugOverdrawResultId, _tempRenderTarget);
+                cmd.SetGlobalTexture(DebugConstant.DebugColorInputId, _sourceRenderTarget);
+                cmd.SetRenderTarget(cameraColorTarget);
+                cmd.DrawProcedural(Matrix4x4.identity, _debugSplitMaterial, 0, MeshTopology.Triangles, 3, 1);
             }
-
             context.ExecuteCommandBuffer(cmd);
             CommandBufferPool.Release(cmd);
         }
@@ -177,8 +201,8 @@ Note: This value determines how many times a pixel can be drawn until it cannot 
     /// <inheritdoc/>
     public override void Create()
     {
-        var settings = new DebugOverdrawSettings(true, overdrawDetectionThreshold);
-        _debugOverdrawPass = new(debugOverdrawMaterial, settings)
+        var settings = new DebugOverdrawSettings(true, overdrawDetectionThreshold, debugDisplayHeightRatio);
+        _debugOverdrawPass = new(debugOverdrawMaterial, debugSplitMaterial, settings)
         {
             renderPassEvent = RenderPassEvent.AfterRenderingPostProcessing
         };
