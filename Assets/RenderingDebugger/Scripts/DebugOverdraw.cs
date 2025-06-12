@@ -8,57 +8,91 @@ public class DebugOverdraw : ScriptableRendererFeature
 {
     [SerializeField] private Material debugOverdrawMaterial;
 
+    [Tooltip(@"Overdraw detection threshold. 
+Note: This value determines how many times a pixel can be drawn until it cannot be accmulated (completely white). For example, if set to 10, a pixel can be drawn up to 10 times and it will not be counted for rest of drawcalls."
+    )]
+    [SerializeField] private int overdrawDetectionThreshold = 20; // Threshold for overdraw detection
+
+    internal readonly struct DebugOverdrawSettings
+    {
+        public readonly bool EnableDebugOverdraw;
+        public readonly int OverdrawDetectionThreshold;
+        public readonly Color debugOverdrawColor;
+        public DebugOverdrawSettings(bool enableDebugOverdraw, int overdrawDetectionThreshold)
+        {
+            EnableDebugOverdraw = enableDebugOverdraw;
+            OverdrawDetectionThreshold = overdrawDetectionThreshold;
+            debugOverdrawColor = new Color(1f / overdrawDetectionThreshold, 1f / overdrawDetectionThreshold, 1f / overdrawDetectionThreshold, 1f);
+        }
+    }
+
     class DebugOverdrawPass : ScriptableRenderPass
     {
-        private const string ProfilerTag = "Overdraw Debug Output";
-        private readonly ProfilingSampler _profilingSampler = new(ProfilerTag);
-        private RTHandle _tempColorTarget;
-        private Material _debugOverdrawMaterial;
+        private const string ProfilerTag = "Debug Overdraw";
+        private RTHandle _tempRenderTarget;
+        private readonly Material _debugOverdrawMaterial;
+        private readonly DebugOverdrawSettings _settings;
 
-        public DebugOverdrawPass(Material debugOverdrawMaterial)
+        public DebugOverdrawPass(Material debugOverdrawMaterial, DebugOverdrawSettings settings)
         {
             _debugOverdrawMaterial = debugOverdrawMaterial;
+            _settings = settings;
         }
 
         public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
         {
-            var cameraTargetDescriptor = renderingData.cameraData.cameraTargetDescriptor;
-            cameraTargetDescriptor.depthBufferBits = 24; // 需要深度缓冲区
-            RenderingUtils.ReAllocateIfNeeded(ref _tempColorTarget, cameraTargetDescriptor,
-                FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TempOverdrawColor");
+            // Check if the debug overdraw material is assigned
+            if (_debugOverdrawMaterial == null)
+            {
+                Debug.LogWarning("Debug Overdraw is disabled or material is not assigned.");
+                return;
+            }
 
-            ConfigureTarget(_tempColorTarget);
-            ConfigureClear(ClearFlag.All, Color.clear);
+            // allocate a temporary render target for the debug overdraw pass
+            var cameraTargetDescriptor = renderingData.cameraData.cameraTargetDescriptor;
+            cameraTargetDescriptor.depthBufferBits = 0;
+            RenderingUtils.ReAllocateIfNeeded(ref _tempRenderTarget, cameraTargetDescriptor,
+                FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_DebugOverdrawTarget");
+
+            // configure the render pass to use the temporary render target
+            ConfigureTarget(_tempRenderTarget);
+            ConfigureClear(ClearFlag.All, Color.black);
+
+            // set up the render pass event
+            base.profilingSampler = new ProfilingSampler(ProfilerTag);
         }
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
+            // Check if the debug overdraw material is assigned
             if (_debugOverdrawMaterial == null)
                 return;
 
             var cmd = CommandBufferPool.Get(ProfilerTag);
-            using (new ProfilingScope(cmd, _profilingSampler))
+
+            // set up the debug overdraw material
+            using (new ProfilingScope(cmd, new ProfilingSampler("Setup Overdraw Parameters")))
             {
-                // Set overdraw base color
-                cmd.SetGlobalColor("_OverdrawColor", Color.gray);
-                // cmd.SetRenderTarget(_tempColorTarget);
-
-                // Create drawing settings with sorting and filtering
-                var sortingSettings = CreateSortingSettings(ref renderingData);
-                var drawingSettings = CreateDrawingSettings(ref renderingData, sortingSettings);
-                var filteringSettings = CreateFilteringSettings(ref renderingData);
-                var renderStateBlock = CreateRenderStateBlock();
-
-                // Draw renderers with the debug overdraw material
-                context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref filteringSettings, ref renderStateBlock);
-                // context.ExecuteCommandBuffer(cmd);
-                // cmd.Clear();
-
-                // // Blit the temporary color target to the camera color target
-                // var cameraColorTarget = renderingData.cameraData.renderer.cameraColorTargetHandle;
-                // cmd.SetRenderTarget(cameraColorTarget);
-                // cmd.Blit(_tempColorTarget, cameraColorTarget);
+                cmd.SetGlobalColor("_OverdrawColor", _settings.debugOverdrawColor);
             }
+            context.ExecuteCommandBuffer(cmd);
+            cmd.Clear();
+
+            // draw renderers with debug overdraw material
+            var sortingSettings = CreateSortingSettings(ref renderingData);
+            var drawingSettings = CreateDrawingSettings(ref renderingData, sortingSettings);
+            var filteringSettings = CreateFilteringSettings(ref renderingData);
+            var renderStateBlock = CreateRenderStateBlock();
+
+            context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref filteringSettings, ref renderStateBlock);
+
+            // blit the result to the camera color target
+            using (new ProfilingScope(cmd, new ProfilingSampler("Blit Overdraw Result")))
+            {
+                var cameraColorTarget = renderingData.cameraData.renderer.cameraColorTargetHandle;
+                cmd.Blit(_tempRenderTarget, cameraColorTarget);
+            }
+
             context.ExecuteCommandBuffer(cmd);
             CommandBufferPool.Release(cmd);
         }
@@ -69,7 +103,7 @@ public class DebugOverdraw : ScriptableRendererFeature
 
         public void Dispose()
         {
-            _tempColorTarget?.Release();
+            _tempRenderTarget?.Release();
         }
 
         private DrawingSettings CreateDrawingSettings(ref RenderingData renderingData, SortingSettings sortingSettings)
@@ -120,13 +154,18 @@ public class DebugOverdraw : ScriptableRendererFeature
             {
                 sourceColorBlendMode = BlendMode.One,
                 destinationColorBlendMode = BlendMode.One,
+                sourceAlphaBlendMode = BlendMode.One,
+                destinationAlphaBlendMode = BlendMode.Zero,
+                colorBlendOperation = BlendOp.Add,
+                alphaBlendOperation = BlendOp.Add,
+                writeMask = ColorWriteMask.All
             };
             var renderStateBlock = new RenderStateBlock()
             {
                 // cull off to detect overdraw in all directions
                 rasterState = new RasterState(cullingMode: CullMode.Off, offsetUnits: 0, offsetFactor: 0),
                 blendState = new BlendState { blendState0 = additiveColorBlendState },
-                depthState = new DepthState(false, CompareFunction.LessEqual),
+                depthState = new DepthState(true, CompareFunction.LessEqual),
                 mask = RenderStateMask.Raster | RenderStateMask.Blend | RenderStateMask.Depth
             };
             return renderStateBlock;
@@ -138,9 +177,10 @@ public class DebugOverdraw : ScriptableRendererFeature
     /// <inheritdoc/>
     public override void Create()
     {
-        _debugOverdrawPass = new(debugOverdrawMaterial)
+        var settings = new DebugOverdrawSettings(true, overdrawDetectionThreshold);
+        _debugOverdrawPass = new(debugOverdrawMaterial, settings)
         {
-            renderPassEvent = RenderPassEvent.AfterRenderingOpaques
+            renderPassEvent = RenderPassEvent.AfterRenderingPostProcessing
         };
     }
 

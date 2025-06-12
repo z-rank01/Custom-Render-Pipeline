@@ -4,12 +4,16 @@ using UnityEngine.Rendering.Universal;
 
 namespace RenderingDebugger.Scripts
 {
-    internal class DebugOutputSettings
+    internal struct DebugOutputSettings
     {
-        public bool EnableDebugOutput = true;
-        public bool EnableColorDebugOutput = false; // 是否启用颜色调试输出
-        public bool EnableDepthDebugOutput = false; // 是否启用深度调试输出
-        public float DisplayHeightRatio = 0.5f; // Default height ratio for the debug display
+        public bool EnableDebugOutput;
+        public float DisplayHeightRatio;
+
+        public DebugOutputSettings(bool enableDebug, float displayHeightRatio)
+        {
+            EnableDebugOutput = enableDebug;
+            DisplayHeightRatio = displayHeightRatio;
+        }
     }
 
     [DisallowMultipleRendererFeature("Depth Debug Output")]
@@ -22,11 +26,11 @@ namespace RenderingDebugger.Scripts
         {
             private readonly Material _debugSplitMaterial;
             private readonly DebugOutputSettings _settings;
-            private const string ProfilerTag = "Depth Debug Output";
+            private const string ProfilerTag = "Debug Depth";
             private readonly ProfilingSampler _profilingSampler = new(ProfilerTag);
             
             // 临时渲染目标
-            private RTHandle _tempColorTarget;
+            private RTHandle _tempRenderTarget;
 
             public DepthOutputRenderPass(DebugOutputSettings settings, Material debugSplitMaterial)
             {
@@ -37,13 +41,11 @@ namespace RenderingDebugger.Scripts
             public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
             {
                 var cameraTargetDescriptor = renderingData.cameraData.cameraTargetDescriptor;
-                
-                // 确保临时目标有正确的格式
-                cameraTargetDescriptor.depthBufferBits = 0; // 不需要深度缓冲
-                
-                // 创建临时渲染目标
-                RenderingUtils.ReAllocateIfNeeded(ref _tempColorTarget, cameraTargetDescriptor, 
-                    FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TempDebugColor");
+                cameraTargetDescriptor.depthBufferBits = 0;
+                RenderingUtils.ReAllocateIfNeeded(ref _tempRenderTarget, cameraTargetDescriptor,
+                    FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_DebugDepthTarget");
+                ConfigureInput(ScriptableRenderPassInput.Color);
+                ConfigureInput(ScriptableRenderPassInput.Depth);
             }
 
             public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
@@ -55,11 +57,11 @@ namespace RenderingDebugger.Scripts
                 
                 using (new ProfilingScope(cmd, _profilingSampler))
                 {
-                    cmd.Blit(colorTarget.rt, _tempColorTarget);
+                    cmd.Blit(colorTarget.rt, _tempRenderTarget);
                     
                     cmd.SetRenderTarget(colorTarget);
                     
-                    cmd.SetGlobalTexture(DebugConstant.DebugColorInputId, _tempColorTarget);
+                    cmd.SetGlobalTexture(DebugConstant.DebugColorInputId, _tempRenderTarget);
                     cmd.SetGlobalFloat(DebugConstant.DebugDisplayHeightRatioId, _settings.DisplayHeightRatio);
                     cmd.SetGlobalInt(DebugConstant.DebugScreenWidthId, renderingData.cameraData.cameraTargetDescriptor.width);
                     cmd.SetGlobalInt(DebugConstant.DebugScreenHeightId, renderingData.cameraData.cameraTargetDescriptor.height);
@@ -77,7 +79,7 @@ namespace RenderingDebugger.Scripts
             
             public void Dispose()
             {
-                _tempColorTarget?.Release();
+                _tempRenderTarget?.Release();
             }
         }
 
@@ -86,7 +88,7 @@ namespace RenderingDebugger.Scripts
         public override void Create()
         {
             _depthOutputPass = new DepthOutputRenderPass(
-                new DebugOutputSettings(),
+                new DebugOutputSettings(true, 0.5f),
                 debugDepthMaterial
             )
             {

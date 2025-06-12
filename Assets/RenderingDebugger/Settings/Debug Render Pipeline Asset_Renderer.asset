@@ -13,7 +13,9 @@ MonoBehaviour:
   m_Name: DebugOverdraw
   m_EditorClassIdentifier: 
   m_Active: 1
-  debugOverdrawMaterial: {fileID: 0}
+  debugOverdrawMaterial: {fileID: 2100000, guid: 0d710be45eae1cf4eaa74de319ba956f,
+    type: 2}
+  overdrawDetectionThreshold: 20
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
