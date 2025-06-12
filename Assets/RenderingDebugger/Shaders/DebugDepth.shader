@@ -7,10 +7,7 @@ Shader "RenderingDebugger/DebugDepth"
     
     TEXTURE2D_X(_DebugColorInput);
     SAMPLER(sampler_DebugColorInput);
-
     float _DebugDisplayHeightRatio;
-    int _DebugScreenWidth;
-    int _DebugScreenHeight;
     int _DebugSaturationThreshold;
 
     struct Attributes

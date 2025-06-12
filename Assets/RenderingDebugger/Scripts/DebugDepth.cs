@@ -70,8 +70,6 @@ namespace RenderingDebugger.Scripts
                     cmd.SetGlobalTexture(DebugConstant.DebugColorInputId, _tempRenderTarget);
                     cmd.SetGlobalFloat(DebugConstant.DebugDisplayHeightRatioId, _settings.DisplayHeightRatio);
                     cmd.SetGlobalInt(DebugConstant.DebugSaturationThresholdId, _settings.DepthDetectionThreshold);
-                    cmd.SetGlobalInt(DebugConstant.DebugScreenWidthId, renderingData.cameraData.cameraTargetDescriptor.width);
-                    cmd.SetGlobalInt(DebugConstant.DebugScreenHeightId, renderingData.cameraData.cameraTargetDescriptor.height);
 
                     cmd.DrawProcedural(Matrix4x4.identity, _debugSplitMaterial, 0, MeshTopology.Triangles, 3, 1);
                 }
