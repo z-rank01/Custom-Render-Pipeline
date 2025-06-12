@@ -11,6 +11,7 @@ Shader "RenderingDebugger/DebugDepth"
     float _DebugDisplayHeightRatio;
     int _DebugScreenWidth;
     int _DebugScreenHeight;
+    int _DebugSaturationThreshold;
 
     struct Attributes
     {
@@ -44,26 +45,22 @@ Shader "RenderingDebugger/DebugDepth"
 
     float4 frag(Varyings input) : SV_Target
     {
-        // 采样原始颜色
+        // sample the original color from the debug input texture
         float4 originalColor = SAMPLE_TEXTURE2D_X(_DebugColorInput, sampler_DebugColorInput, input.uv);
         
-        // 计算右上角区域的边界
+        // calculate the debug region size and position
         float debugRegionSize = _DebugDisplayHeightRatio;
         float2 debugRegionStart = float2(1.0 - debugRegionSize, 0.0);
         float2 debugRegionEnd = float2(1.0, debugRegionSize);
         
-        // 检查当前像素是否在右上角的调试区域内
+        // check if the current pixel is within the debug region
         if (input.uv.x >= debugRegionStart.x && input.uv.x <= debugRegionEnd.x &&
             input.uv.y >= debugRegionStart.y && input.uv.y <= debugRegionEnd.y)
         {
-            // 在调试区域内，显示深度信息
             float depth = SampleSceneDepth(input.uv);
-            
-            // 将深度值线性化以便更好地可视化
             float linearDepth = LinearEyeDepth(depth, _ZBufferParams);
-            linearDepth = saturate(linearDepth / 20.0); // 调整这个值来改变深度范围
+            linearDepth = saturate(linearDepth / _DebugSaturationThreshold);
             
-            // 创建热度图颜色映射
             float3 depthColor;
             depthColor.r = smoothstep(0.5, 1.0, linearDepth);
             depthColor.g = smoothstep(0.0, 0.5, linearDepth) * (1.0 - smoothstep(0.5, 1.0, linearDepth));
@@ -71,9 +68,9 @@ Shader "RenderingDebugger/DebugDepth"
             
             return float4(depthColor, 1.0);
         }
+        // if not in the debug region, return the original color
         else
         {
-            // 在调试区域外，显示原始颜色
             return originalColor;
         }
     }

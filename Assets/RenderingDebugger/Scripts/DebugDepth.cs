@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -8,11 +9,14 @@ namespace RenderingDebugger.Scripts
     {
         public bool EnableDebugOutput;
         public float DisplayHeightRatio;
+        public int DepthDetectionThreshold;
 
-        public DebugOutputSettings(bool enableDebug, float displayHeightRatio)
+        public DebugOutputSettings(bool enableDebug, float displayHeightRatio, int depthDetectionThreshold)
         {
+            // Initialize the settings with default values
             EnableDebugOutput = enableDebug;
             DisplayHeightRatio = displayHeightRatio;
+            DepthDetectionThreshold = depthDetectionThreshold;
         }
     }
 
@@ -21,6 +25,8 @@ namespace RenderingDebugger.Scripts
     public class DebugDepth : ScriptableRendererFeature
     {
         [SerializeField] private Material debugDepthMaterial;
+        [SerializeField, Range(0.1f, 1f)] private float displayHeightRatio = 0.5f; // Ratio of the display height for the debug output
+        [SerializeField] private int depthDetectionThreshold = 20; // Threshold for depth detection
 
         private class DepthOutputRenderPass : ScriptableRenderPass
         {
@@ -28,7 +34,7 @@ namespace RenderingDebugger.Scripts
             private readonly DebugOutputSettings _settings;
             private const string ProfilerTag = "Debug Depth";
             private readonly ProfilingSampler _profilingSampler = new(ProfilerTag);
-            
+
             // 临时渲染目标
             private RTHandle _tempRenderTarget;
 
@@ -54,21 +60,22 @@ namespace RenderingDebugger.Scripts
                 var colorTarget = cameraData.renderer.cameraColorTargetHandle;
 
                 var cmd = CommandBufferPool.Get(ProfilerTag);
-                
+
                 using (new ProfilingScope(cmd, _profilingSampler))
                 {
                     cmd.Blit(colorTarget.rt, _tempRenderTarget);
-                    
+
                     cmd.SetRenderTarget(colorTarget);
-                    
+
                     cmd.SetGlobalTexture(DebugConstant.DebugColorInputId, _tempRenderTarget);
                     cmd.SetGlobalFloat(DebugConstant.DebugDisplayHeightRatioId, _settings.DisplayHeightRatio);
+                    cmd.SetGlobalInt(DebugConstant.DebugSaturationThresholdId, _settings.DepthDetectionThreshold);
                     cmd.SetGlobalInt(DebugConstant.DebugScreenWidthId, renderingData.cameraData.cameraTargetDescriptor.width);
                     cmd.SetGlobalInt(DebugConstant.DebugScreenHeightId, renderingData.cameraData.cameraTargetDescriptor.height);
-                    
+
                     cmd.DrawProcedural(Matrix4x4.identity, _debugSplitMaterial, 0, MeshTopology.Triangles, 3, 1);
                 }
-                
+
                 context.ExecuteCommandBuffer(cmd);
                 CommandBufferPool.Release(cmd);
             }
@@ -76,7 +83,7 @@ namespace RenderingDebugger.Scripts
             public override void OnCameraCleanup(CommandBuffer cmd)
             {
             }
-            
+
             public void Dispose()
             {
                 _tempRenderTarget?.Release();
@@ -88,7 +95,7 @@ namespace RenderingDebugger.Scripts
         public override void Create()
         {
             _depthOutputPass = new DepthOutputRenderPass(
-                new DebugOutputSettings(true, 0.5f),
+                new DebugOutputSettings(true, displayHeightRatio, depthDetectionThreshold),
                 debugDepthMaterial
             )
             {

@@ -9,6 +9,7 @@ namespace RenderingDebugger.Scripts
         public static readonly int DebugDisplayHeightRatioId = Shader.PropertyToID("_DebugDisplayHeightRatio");
         public static readonly int DebugScreenWidthId = Shader.PropertyToID("_DebugScreenWidth");
         public static readonly int DebugScreenHeightId = Shader.PropertyToID("_DebugScreenHeight");
+        public static readonly int DebugSaturationThresholdId = Shader.PropertyToID("_DebugSaturationThreshold");
 
         // Debug Overdraw 着色器属性ID
         public static readonly int DebugOverdrawColorId = Shader.PropertyToID("_OverdrawColor");
