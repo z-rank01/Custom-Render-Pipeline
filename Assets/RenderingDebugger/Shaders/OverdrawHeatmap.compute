@@ -1,0 +1,74 @@
+#pragma kernel VisualizeOverdraw
+
+RWStructuredBuffer<uint> _OverdrawCounters;
+RWTexture2D<float4> _OverdrawVisualizationTexture;
+
+uint _ScreenWidth;
+uint _ScreenHeight;
+uint _MaxOverdrawThreshold;
+
+float3 GetHeatmapColor(uint overdrawCount, uint maxThreshold)
+{
+    if (overdrawCount == 0)
+        return float3(0, 0, 0); // 黑色 - 没有绘制
+    
+    float normalizedCount = saturate((float)overdrawCount / (float)maxThreshold);
+    
+    // 创建热度图：黑色 -> 蓝色 -> 绿色 -> 黄色 -> 红色 -> 白色
+    float3 color;
+    
+    if (normalizedCount < 0.2)
+    {
+        // 0-20%: 绿色到蓝色
+        float t = normalizedCount / 0.2;
+        color = lerp(float3(0, 1, 0), float3(0, 0, 1), t);
+    }
+    else if (normalizedCount < 0.4)
+    {
+        // 20-40%: 蓝色到青色
+        float t = (normalizedCount - 0.2) / 0.2;
+        color = lerp(float3(0, 0, 1), float3(0, 1, 1), t);
+    }
+    else if (normalizedCount < 0.6)
+    {
+        // 40-60%: 青色到黄色
+        float t = (normalizedCount - 0.4) / 0.2;
+        color = lerp(float3(0, 1, 1), float3(1, 1, 0), t);
+    }
+    else if (normalizedCount < 0.8)
+    {
+        // 60-80%: 黄色到红色
+        float t = (normalizedCount - 0.6) / 0.2;
+        color = lerp(float3(1, 1, 0), float3(1, 0, 0), t);
+    }
+    else
+    {
+        // 80-100%: 红色到白色
+        float t = (normalizedCount - 0.8) / 0.2;
+        color = lerp(float3(1, 0, 0), float3(1, 1, 1), t);
+    }
+    
+    return color;
+}
+
+
+[numthreads(8,8,1)]
+void VisualizeOverdraw(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _ScreenWidth || id.y >= _ScreenHeight)
+        return;
+
+    // 强制测试：屏幕中心区域显示为红色
+    if (abs((int)id.x - (int)(_ScreenWidth / 2)) < 100 && 
+        abs((int)id.y - (int)(_ScreenHeight / 2)) < 100)
+    {
+        _OverdrawVisualizationTexture[id.xy] = float4(1, 0, 0, 1);
+        return;
+    }
+    
+    uint index = id.y * _ScreenWidth + id.x;
+    uint overdrawCount = _OverdrawCounters[index];
+    
+    float3 heatmapColor = GetHeatmapColor(overdrawCount, _MaxOverdrawThreshold);
+    _OverdrawVisualizationTexture[id.xy] = float4(heatmapColor, 1.0);
+}

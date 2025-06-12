@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 67e63bb2710bff548a59597ecee8b820, type: 3}
   m_Name: DebugOverdraw
   m_EditorClassIdentifier: 
-  m_Active: 1
+  m_Active: 0
   debugOverdrawMaterial: {fileID: 2100000, guid: 0d710be45eae1cf4eaa74de319ba956f,
     type: 2}
   debugSplitMaterial: {fileID: 2100000, guid: 7b8aab5f849033f468f1f4a553548b4c, type: 2}
