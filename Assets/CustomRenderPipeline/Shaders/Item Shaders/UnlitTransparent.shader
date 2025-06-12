@@ -31,7 +31,7 @@ Shader "CustomRenderPipeline/UnlitTransparent"
             #pragma vertex vert
             #pragma fragment frag
             
-            #include "Assets/HLSL/UnlitTransparent.hlsl"
+            #include "Assets/CustomRenderPipeline/HLSL/UnlitTransparent.hlsl"
             ENDCG
         }
     }

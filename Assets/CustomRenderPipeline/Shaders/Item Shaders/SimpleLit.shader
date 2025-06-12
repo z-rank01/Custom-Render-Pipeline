@@ -26,7 +26,7 @@ Shader "CustomRenderPipeline/SimpleLit"
             #pragma vertex vert
             #pragma fragment frag
 
-            #include "Assets/HLSL/SimpleLit.hlsl"
+            #include "Assets/CustomRenderPipeline/HLSL/SimpleLit.hlsl"
             ENDCG
         }
     }
