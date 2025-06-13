@@ -3,8 +3,8 @@
 RWTexture2D<float4> _OverdrawVisualizationTexture;
 RWStructuredBuffer<uint> _OverdrawCounters;
 
-uint _ScreenWidth;
-uint _ScreenHeight;
+uint _ComputeScreenWidth;
+uint _ComputeScreenHeight;
 uint _MaxOverdrawThreshold;
 float4 _MinOverdrawColor;
 float4 _MaxOverdrawColor;
@@ -25,10 +25,10 @@ float3 GetLinearHeatmapColor(uint overdrawCount, uint maxThreshold)
 [numthreads(8,8,1)]
 void VisualizeOverdraw(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x >= _ScreenWidth || id.y >= _ScreenHeight)
+    if (id.x >= _ComputeScreenWidth || id.y >= _ComputeScreenHeight)
         return;
 
-    uint index = id.y * _ScreenWidth + id.x;
+    uint index = id.y * _ComputeScreenWidth + id.x;
     uint overdrawCount = _OverdrawCounters[index];
 
     // // 强制测试：屏幕中心区域显示为红色
