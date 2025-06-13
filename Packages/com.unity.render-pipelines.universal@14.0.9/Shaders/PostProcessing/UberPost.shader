@@ -17,6 +17,14 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
         #pragma multi_compile_fragment _ SCREEN_COORD_OVERRIDE
         #pragma multi_compile_local_fragment _ HDR_INPUT HDR_ENCODING
 
+        // -------------------------------------
+        // Overdraw Detection
+        #pragma target 5.0
+        #pragma multi_compile _ ENABLE_OVERDRAW_DETECTION
+#ifdef ENABLE_OVERDRAW_DETECTION
+        #include "Assets/RenderingDebugger/Shaders/OverdrawAccumulator.hlsl"
+#endif
+
         #ifdef HDR_ENCODING
         #define HDR_INPUT 1 // this should be defined when HDR_ENCODING is defined
         #endif
@@ -144,6 +152,10 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
 
         half4 FragUberPost(Varyings input) : SV_Target
         {
+            #ifdef ENABLE_OVERDRAW_DETECTION
+            RECORD_OVERDRAW_SIMPLE(input.positionCS);
+            #endif
+
             UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
             float2 uv = SCREEN_COORD_APPLY_SCALEBIAS(UnityStereoTransformScreenSpaceTex(input.texcoord));

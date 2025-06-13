@@ -26,6 +26,10 @@ public class OverdrawDetection : ScriptableRendererFeature
         [Range(0f, 1f)] public float overdrawIntensity = 0.7f;
         [Range(1, 50)] public uint maxOverdrawThreshold = 20;
 
+        [Header("Heatmap Colors")]
+        [ColorUsage(false)] public Color minOverdrawColor = Color.black;
+        [ColorUsage(false)] public Color maxOverdrawColor = Color.red;
+
         [Header("Performance")]
         public bool updateEveryFrame = true;
     }
@@ -53,7 +57,7 @@ public class OverdrawDetection : ScriptableRendererFeature
     {
         if (disposing)
         {
-            OverdrawAccumulator.Cleanup();
+            _overdrawPass.Dispose();
         }
     }
 
@@ -73,19 +77,21 @@ public class OverdrawDetection : ScriptableRendererFeature
         public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
         {
             var cameraData = renderingData.cameraData;
+            int currentWidth = cameraData.camera.pixelWidth;
+            int currentHeight = cameraData.camera.pixelHeight;
 
             // 启用 overdraw 检测
-            if (!_isInitialized)
+            if (!_isInitialized || OverdrawAccumulator.Instance.CheckResolution(currentWidth, currentHeight))
             {
-                OverdrawAccumulator.EnableOverdrawDetection(
-                    cameraData.camera.pixelWidth,
-                    cameraData.camera.pixelHeight,
+                OverdrawAccumulator.Instance.EnableOverdrawDetection(
+                    currentWidth,
+                    currentHeight,
                     _settings.overdrawVisualizationCS
                 );
+                OverdrawAccumulator.Instance.SetupUAVBinding(cmd);
                 _isInitialized = true;
             }
-            // 清零计数器 - 每帧开始时清零
-            OverdrawAccumulator.ClearCounters(cmd);
+            OverdrawAccumulator.Instance.ClearData(cmd);
 
             // 创建临时颜色目标用于保存原始图像
             var descriptor = renderingData.cameraData.cameraTargetDescriptor;
@@ -98,37 +104,49 @@ public class OverdrawDetection : ScriptableRendererFeature
         {
             var cmd = CommandBufferPool.Get(_profilerTag);
             var cameraColorTarget = renderingData.cameraData.renderer.cameraColorTargetHandle;
+
             using (new ProfilingScope(cmd, new ProfilingSampler(_profilerTag)))
             {
                 // 1. 保存当前相机颜色目标
                 cmd.Blit(cameraColorTarget.rt, _tempColorTarget);
 
                 // 2. 生成 overdraw 可视化
-                if (_settings.updateEveryFrame || Time.frameCount % 30 == 0) // 可选：降低更新频率
-                {
-                    OverdrawAccumulator.GenerateVisualization(cmd, _settings.maxOverdrawThreshold);
-                }
+                // if (_settings.updateEveryFrame || Time.frameCount % 30 == 0) // 可选：降低更新频率
+                // {
+                    // OverdrawAccumulator.Instance.SetupBuffer(cmd);
+                    // OverdrawAccumulator.Instance.SetupUAVBinding(cmd);
+                    OverdrawAccumulator.Instance.GenerateVisualization(cmd, _settings.maxOverdrawThreshold, _settings.minOverdrawColor, _settings.maxOverdrawColor);
+                // }
 
                 // 3. 应用 overdraw 可视化到相机目标
-                var overdrawTexture = OverdrawAccumulator.OverdrawVisualizationTexture;
-                if (overdrawTexture == null)
+                var overdrawTexture = OverdrawAccumulator.Instance.OverdrawVisualizationTexture;
+                if (overdrawTexture != null)
+                {
+                    // 设置材质参数
+                    var material = _settings.overdrawDisplayMaterial;
+                    material.SetTexture("_OverdrawTexture", overdrawTexture);
+                    material.SetTexture("_OriginalTexture", _tempColorTarget);
+                    material.SetFloat("_OverdrawIntensity", _settings.overdrawIntensity);
+                    material.SetInt("_BlendMode", (int)_settings.displayMode);
+
+                    // 绘制全屏 quad
+                    cmd.SetRenderTarget(cameraColorTarget);
+                    cmd.DrawProcedural(Matrix4x4.identity, material, 0, MeshTopology.Triangles, 3, 1);
+                }
+                else
                 {
                     Debug.LogWarning("Overdraw visualization texture is null!");
-                    return;
                 }
-                // 设置材质参数
-                    var material = _settings.overdrawDisplayMaterial;
-                material.SetTexture("_OverdrawTexture", overdrawTexture);
-                material.SetTexture("_OriginalTexture", _tempColorTarget);
-                material.SetFloat("_OverdrawIntensity", _settings.overdrawIntensity);
-                material.SetInt("_BlendMode", (int)_settings.displayMode);
-                // 绘制全屏 quad
-                cmd.SetRenderTarget(cameraColorTarget);
-                cmd.DrawProcedural(Matrix4x4.identity, material, 0, MeshTopology.Triangles, 3, 1);
             }
 
             context.ExecuteCommandBuffer(cmd);
             CommandBufferPool.Release(cmd);
+
+            // 调试输出 overdraw 缓冲区内容 - 移到 ProfilingScope 外部
+            // if (_settings.updateEveryFrame || Time.frameCount % 30 == 0)
+            // {
+            //     OverdrawAccumulator.Instance.DebugBufferContents();
+            // }
         }
 
         public override void OnCameraCleanup(CommandBuffer cmd)
@@ -138,7 +156,8 @@ public class OverdrawDetection : ScriptableRendererFeature
         public void Dispose()
         {
             _tempColorTarget?.Release();
-            OverdrawAccumulator.DisableOverdrawDetection();
+            OverdrawAccumulator.Instance.DisableOverdrawDetection();
+            OverdrawAccumulator.Instance.Cleanup();
             _isInitialized = false;
         }
     }

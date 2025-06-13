@@ -107,6 +107,7 @@ Shader "Universal Render Pipeline/Lit"
             AlphaToMask[_AlphaToMask]
 
             HLSLPROGRAM
+            // #pragma target 2.0
             #pragma target 5.0
 
             // -------------------------------------

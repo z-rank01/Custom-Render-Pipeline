@@ -212,18 +212,7 @@ void LitPassFragment(
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
 #ifdef ENABLE_OVERDRAW_DETECTION
-    if (input.positionCS.x < 200 && input.positionCS.y < 200)
-    {
-        // 强制在左上角记录多次 overdraw
-        for (int i = 0; i < 5; i++)
-        {
-            RECORD_OVERDRAW_SIMPLE(input.positionCS);
-        }
-    }
-    else
-    {
-        RECORD_OVERDRAW_SIMPLE(input.positionCS);
-    }
+    RECORD_OVERDRAW_SIMPLE(input.positionCS);
 #endif
 
 #if defined(_PARALLAXMAP)
