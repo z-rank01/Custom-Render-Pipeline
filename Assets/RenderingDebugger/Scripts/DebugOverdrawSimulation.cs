@@ -22,6 +22,18 @@ namespace RenderingDebugger.Scripts
             public int OverdrawDetectionThreshold = 10;
             [Range(0.1f, 1f)] public float DebugDisplayHeightRatio = 0.5f;
             public Color DebugOverdrawColor = new(0.1f, 0.1f, 0.1f, 0.5f);
+
+            [Header("Color Blend Modes")]
+            public BlendMode SrcColorBlendMode = BlendMode.One;
+            public BlendMode DstColorBlendMode = BlendMode.One;
+
+            [Header("Alpha Blend Modes")]
+            public BlendMode SrcAlphaBlendMode = BlendMode.One;
+            public BlendMode DstAlphaBlendMode = BlendMode.Zero;
+
+            [Header("Blend Operations")]
+            public BlendOp ColorBlendOp = BlendOp.Add;
+            public BlendOp AlphaBlendOp = BlendOp.Add;
         }
 
         private class DebugOverdrawSimulationPass : ScriptableRenderPass
@@ -164,12 +176,12 @@ namespace RenderingDebugger.Scripts
             {
                 var additiveColorBlendState = new RenderTargetBlendState
                 {
-                    sourceColorBlendMode = BlendMode.One,
-                    destinationColorBlendMode = BlendMode.One,
-                    sourceAlphaBlendMode = BlendMode.One,
-                    destinationAlphaBlendMode = BlendMode.Zero,
-                    colorBlendOperation = BlendOp.Add,
-                    alphaBlendOperation = BlendOp.Add,
+                    sourceColorBlendMode = _settings.SrcColorBlendMode,
+                    destinationColorBlendMode =  _settings.DstColorBlendMode,
+                    sourceAlphaBlendMode =  _settings.SrcAlphaBlendMode,
+                    destinationAlphaBlendMode =  _settings.DstAlphaBlendMode,
+                    colorBlendOperation =  _settings.ColorBlendOp,
+                    alphaBlendOperation =   _settings.AlphaBlendOp,
                     writeMask = ColorWriteMask.All
                 };
                 var renderStateBlock = new RenderStateBlock()
