@@ -7,15 +7,6 @@ namespace RenderingDebugger.Scripts
     public class DebugOverdrawDetection : ScriptableRendererFeature
     {
         [System.Serializable]
-        public enum OverdrawDisplayMode
-        {
-            Overlay,      // 叠加模式
-            Replace,      // 替换模式
-            SplitScreen,  // 分屏模式
-            Additive     // 加法模式
-        }
-
-        [System.Serializable]
         public class OverdrawDetectionSettings
         {
             [Header("Detection Settings")]
@@ -24,11 +15,11 @@ namespace RenderingDebugger.Scripts
 
             [Header("Visualization Settings")]
             public Material overdrawDisplayMaterial;
-            public OverdrawDisplayMode displayMode = OverdrawDisplayMode.Overlay;
+            [Range(0f, 1f)] public float overdrawDisplayHeightRatio = 0.5f;
             [Range(0f, 1f)] public float overdrawIntensity = 0.7f;
             [Range(1, 50)] public uint maxOverdrawThreshold = 20;
 
-            [Header("Heatmap Colors")]
+            [Header("Range map Colors")]
             [ColorUsage(false)] public Color minOverdrawColor = Color.gray;
             [ColorUsage(false)] public Color maxOverdrawColor = Color.white;
 
@@ -36,7 +27,7 @@ namespace RenderingDebugger.Scripts
             public bool updateEveryFrame = true;
         }
 
-        public OverdrawDetectionSettings settings = new OverdrawDetectionSettings();
+        public OverdrawDetectionSettings settings = new();
         private DebugOverdrawDetectionPass _debugOverdrawDetectionPass;
 
         public override void Create()
@@ -113,12 +104,7 @@ namespace RenderingDebugger.Scripts
                     cmd.Blit(cameraColorTarget.rt, _tempColorTarget);
 
                     // 2. 生成 overdraw 可视化
-                    // if (_settings.updateEveryFrame || Time.frameCount % 30 == 0) // 可选：降低更新频率
-                    // {
-                    // OverdrawAccumulator.Instance.SetupBuffer(cmd);
-                    // OverdrawAccumulator.Instance.SetupUAVBinding(cmd);
                     OverdrawAccumulator.Instance.GenerateVisualization(cmd, _settings.maxOverdrawThreshold, _settings.minOverdrawColor, _settings.maxOverdrawColor);
-                    // }
 
                     // 3. 应用 overdraw 可视化到相机目标
                     var overdrawTexture = OverdrawAccumulator.Instance.overdrawVisualizationTexture;
@@ -126,10 +112,11 @@ namespace RenderingDebugger.Scripts
                     {
                         // 设置材质参数
                         var material = _settings.overdrawDisplayMaterial;
-                        material.SetTexture("_OverdrawTexture", overdrawTexture);
-                        material.SetTexture("_OriginalTexture", _tempColorTarget);
-                        material.SetFloat("_OverdrawIntensity", _settings.overdrawIntensity);
-                        material.SetInt("_BlendMode", (int)_settings.displayMode);
+                        material.SetTexture(DebugConstant.OverdrawBlendOverdrawTextureId, overdrawTexture);
+                        material.SetTexture(DebugConstant.OverdrawBlendOriginalTextureId, _tempColorTarget);
+                        material.SetFloat(DebugConstant.OverdrawBlendOverdrawIntensityId, _settings.overdrawIntensity);
+                        material.SetFloat(DebugConstant.OverdrawBlendDisplayHeightRatioId,  _settings.overdrawDisplayHeightRatio);
+                        // material.SetInt("_BlendMode", (int)_settings.displayMode);
 
                         // 绘制全屏 quad
                         cmd.SetRenderTarget(cameraColorTarget);

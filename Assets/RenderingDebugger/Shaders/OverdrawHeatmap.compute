@@ -30,39 +30,7 @@ void VisualizeOverdraw(uint3 id : SV_DispatchThreadID)
 
     uint index = id.y * _ComputeScreenWidth + id.x;
     uint overdrawCount = _OverdrawCounters[index];
-
-    // // 强制测试：屏幕中心区域显示为红色
-    // if (abs((int)id.x - (int)(_ScreenWidth / 2)) < 100 && 
-    //     abs((int)id.y - (int)(_ScreenHeight / 2)) < 100)
-    // {
-    //     _OverdrawVisualizationTexture[id.xy] = float4(1, 0, 0, 1);
-    //     return;
-    // }
-
-    // // Compute Shader 强制写入：左上角绿色
-    // if (id.x < 100 && id.y < 100)
-    // {
-    //     InterlockedAdd(_OverdrawCounters[index], 5);
-    //     _OverdrawVisualizationTexture[id.xy] = float4(0, 1, 0, 1); // 绿色
-    //     return;
-    // }
     
-    // // Fragment Shader 测试区域：右上角蓝色（如果有数据）
-    // if (id.x > (_ScreenWidth - 100) && id.y < 100 && overdrawCount > 0)
-    // {
-    //     _OverdrawVisualizationTexture[id.xy] = float4(0, 0, 1, 1); // 蓝色
-    //     return;
-    // }
-    
-    // 显示真实的 overdraw 数据
-    // if (overdrawCount > 0)
-    // {
-    //     // 如果有真实的 overdraw 数据，显示为蓝色
-    //     _OverdrawVisualizationTexture[id.xy] = float4(0, 0, 1, 1);
-    //     return;
-    // }
-    
-    // 使用线性插值颜色
     float3 heatmapColor = GetLinearHeatmapColor(overdrawCount, _MaxOverdrawThreshold);
     _OverdrawVisualizationTexture[id.xy] = float4(heatmapColor, 1.0);
 }

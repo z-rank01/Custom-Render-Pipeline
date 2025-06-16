@@ -19,11 +19,11 @@ MonoBehaviour:
       type: 3}
     overdrawDisplayMaterial: {fileID: 2100000, guid: 858038ef6225d3c4e9652979ba39efe4,
       type: 2}
-    displayMode: 1
-    overdrawIntensity: 0.7
+    overdrawDisplayHeightRatio: 0.5
+    overdrawIntensity: 0.8
     maxOverdrawThreshold: 5
-    minOverdrawColor: {r: 0.2264151, g: 0.2264151, b: 0.2264151, a: 1}
-    maxOverdrawColor: {r: 0.8396226, g: 0.8396226, b: 0.8396226, a: 1}
+    minOverdrawColor: {r: 0, g: 0, b: 0, a: 1}
+    maxOverdrawColor: {r: 1, g: 0.0956518, b: 0, a: 1}
     updateEveryFrame: 1
 --- !u!114 &-7186481058024131514
 MonoBehaviour:
@@ -65,7 +65,7 @@ MonoBehaviour:
   - {fileID: -7734156628155387538}
   m_RendererFeatureMap: 937f0f93e5a6be6d46f465a78d7d449c6eb1902586c1aa94
   m_UseNativeRenderPass: 0
-  postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
+  postProcessData: {fileID: 0}
   xrSystemData: {fileID: 11400000, guid: 60e1133243b97e347b653163a8c01b64, type: 2}
   shaders:
     blitPS: {fileID: 4800000, guid: c17132b1f77d20942aa75f8429c0f8bc, type: 3}

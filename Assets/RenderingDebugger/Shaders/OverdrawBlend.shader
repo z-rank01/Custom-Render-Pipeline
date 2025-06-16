@@ -35,7 +35,7 @@ Shader "RenderingDebugger/OverdrawBlend"
             TEXTURE2D(_OriginalTexture);
             SAMPLER(sampler_OriginalTexture);
             float _OverdrawIntensity;
-            int _BlendMode;
+            float _OverdrawDisplayHeightRatio;
             
             Varyings vert(Attributes input)
             {
@@ -57,28 +57,20 @@ Shader "RenderingDebugger/OverdrawBlend"
                 
                 // 不同的混合模式
                 float4 finalColor;
-                
-                if (_BlendMode == 0) // Overlay
+                // calculate the debug region size and position
+                float debugRegionSize = _OverdrawDisplayHeightRatio;
+                float2 debugRegionStart = float2(1.0 - debugRegionSize, 0.0);
+                float2 debugRegionEnd = float2(1.0, debugRegionSize);
+
+                // check if the current pixel is within the debug region
+                if (input.uv.x >= debugRegionStart.x && input.uv.x <= debugRegionEnd.x &&
+                    input.uv.y >= debugRegionStart.y && input.uv.y <= debugRegionEnd.y)
                 {
-                    // 叠加模式：保留原图，叠加 overdraw 热度图
-                    finalColor = lerp(originalColor, overdrawColor, _OverdrawIntensity * overdrawColor.a);
-                    finalColor.a = originalColor.a;
+                    finalColor = lerp(originalColor, overdrawColor, _OverdrawIntensity); // return the overdraw color if in the debug region
                 }
-                else if (_BlendMode == 1) // Replace
+                else
                 {
-                    // 替换模式：完全显示 overdraw 热度图
-                    finalColor = overdrawColor;
-                }
-                else if (_BlendMode == 2) // Split Screen
-                {
-                    // 分屏模式：左半边原图，右半边 overdraw
-                    finalColor = input.uv.x < 0.5 ? originalColor : overdrawColor;
-                }
-                else // Additive
-                {
-                    // 加法模式：原图 + overdraw 热度图
-                    finalColor = originalColor + overdrawColor * _OverdrawIntensity;
-                    finalColor.a = originalColor.a;
+                    finalColor =  originalColor; // outside the debug region, return the original color
                 }
                 
                 return finalColor;
