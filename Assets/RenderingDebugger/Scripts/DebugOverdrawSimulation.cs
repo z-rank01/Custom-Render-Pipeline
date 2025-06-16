@@ -8,29 +8,20 @@ namespace RenderingDebugger.Scripts
     [Tooltip("The debug output for overdraw in the rendering pipeline.")]
     public class DebugOverdrawSimulation : ScriptableRendererFeature
     {
-        [SerializeField] private Material debugOverdrawMaterial;
-        [SerializeField] private Material debugSplitMaterial;
+        public DebugOverdrawSettings settings = new();
+        private DebugOverdrawSimulationPass _debugOverdrawSimulationPass;
 
-        [Tooltip(@"Overdraw detection threshold. 
-Note: This value determines how many times a pixel can be drawn until it cannot be accmulated (completely white). For example, if set to 10, a pixel can be drawn up to 10 times and it will not be counted for rest of drawcalls."
-        )]
-        [SerializeField] private int overdrawDetectionThreshold = 20; // Threshold for overdraw detection
-        [SerializeField, Range(0.1f, 1f)] private float debugDisplayHeightRatio = 0.5f; // Ratio of the display height to use for overdraw visualization
-
-
-        private readonly struct DebugOverdrawSettings
+        [System.Serializable]
+        public class DebugOverdrawSettings
         {
-            public readonly bool EnableDebugOverdraw;
-            public readonly int OverdrawDetectionThreshold;
-            public readonly float DebugDisplayHeightRatio;
-            public readonly Color debugOverdrawColor;
-            public DebugOverdrawSettings(bool enableDebugOverdraw, int overdrawDetectionThreshold, float debugDisplayHeightRatio)
-            {
-                EnableDebugOverdraw = enableDebugOverdraw;
-                OverdrawDetectionThreshold = overdrawDetectionThreshold;
-                debugOverdrawColor = new Color(1f / overdrawDetectionThreshold, 1f / overdrawDetectionThreshold, 1f / overdrawDetectionThreshold, 1f);
-                DebugDisplayHeightRatio = debugDisplayHeightRatio;
-            }
+            [Header("Debug Overdraw Materials")]
+            public Material DebugOverdrawMaterial;
+            public Material DebugSplitMaterial;
+
+            [Header("Overdraw Detection Settings")]
+            public int OverdrawDetectionThreshold = 10;
+            [Range(0.1f, 1f)] public float DebugDisplayHeightRatio = 0.5f;
+            public Color DebugOverdrawColor = new(0.1f, 0.1f, 0.1f, 0.5f);
         }
 
         private class DebugOverdrawSimulationPass : ScriptableRenderPass
@@ -38,23 +29,19 @@ Note: This value determines how many times a pixel can be drawn until it cannot 
             private const string ProfilerTag = "Debug Overdraw";
             private RTHandle _tempRenderTarget;
             private RTHandle _sourceRenderTarget;
-            private readonly Material _debugOverdrawMaterial;
-            private readonly Material _debugSplitMaterial;
             private readonly DebugOverdrawSettings _settings;
 
-            public DebugOverdrawSimulationPass(Material debugOverdrawMaterial, Material debugSplitMaterial, DebugOverdrawSettings settings)
+            public DebugOverdrawSimulationPass(DebugOverdrawSettings settings)
             {
-                _debugOverdrawMaterial = debugOverdrawMaterial;
-                _debugSplitMaterial = debugSplitMaterial;
                 _settings = settings;
             }
 
             public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
             {
                 // Check if the debug overdraw material is assigned
-                if (!_debugOverdrawMaterial)
+                if (!_settings.DebugOverdrawMaterial || !_settings.DebugSplitMaterial)
                 {
-                    Debug.LogWarning("Debug Overdraw is disabled or material is not assigned.");
+                    Debug.LogWarning("Debug Overdraw materials are not assigned.");
                     return;
                 }
 
@@ -77,7 +64,7 @@ Note: This value determines how many times a pixel can be drawn until it cannot 
             public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
             {
                 // Check if the debug overdraw material is assigned
-                if (!_debugOverdrawMaterial)
+                if (!_settings.DebugOverdrawMaterial || !_settings.DebugSplitMaterial)
                     return;
 
                 var cmd = CommandBufferPool.Get(ProfilerTag);
@@ -95,7 +82,7 @@ Note: This value determines how many times a pixel can be drawn until it cannot 
                 // set up the debug overdraw material
                 using (new ProfilingScope(cmd, new ProfilingSampler("Setup Overdraw Parameters")))
                 {
-                    cmd.SetGlobalColor(DebugConstant.DebugOverdrawColorId, _settings.debugOverdrawColor);
+                    cmd.SetGlobalColor(DebugConstant.DebugOverdrawColorId, _settings.DebugOverdrawColor);
                     cmd.SetRenderTarget(_tempRenderTarget);
                     cmd.ClearRenderTarget(true, true, Color.clear);
                     context.ExecuteCommandBuffer(cmd);
@@ -116,7 +103,7 @@ Note: This value determines how many times a pixel can be drawn until it cannot 
                     cmd.SetGlobalTexture(DebugConstant.DebugOverdrawResultId, _tempRenderTarget);
                     cmd.SetGlobalTexture(DebugConstant.DebugColorInputId, _sourceRenderTarget);
                     cmd.SetRenderTarget(cameraColorTarget);
-                    cmd.DrawProcedural(Matrix4x4.identity, _debugSplitMaterial, 0, MeshTopology.Triangles, 3, 1);
+                    cmd.DrawProcedural(Matrix4x4.identity, _settings.DebugSplitMaterial, 0, MeshTopology.Triangles, 3, 1);
                 }
                 context.ExecuteCommandBuffer(cmd);
                 CommandBufferPool.Release(cmd);
@@ -145,7 +132,7 @@ Note: This value determines how many times a pixel can be drawn until it cannot 
                 var drawingSettings = new DrawingSettings(shaderTagIds[0], sortingSettings)
                 {
                     // use the debug overdraw material for rendering
-                    overrideMaterial = _debugOverdrawMaterial,
+                    overrideMaterial = _settings.DebugOverdrawMaterial,
                     overrideMaterialPassIndex = 0,
 
                     perObjectData = renderingData.perObjectData,
@@ -197,13 +184,10 @@ Note: This value determines how many times a pixel can be drawn until it cannot 
             }
         }
 
-        private DebugOverdrawSimulationPass _debugOverdrawSimulationPass;
-
         /// <inheritdoc/>
         public override void Create()
         {
-            var settings = new DebugOverdrawSettings(true, overdrawDetectionThreshold, debugDisplayHeightRatio);
-            _debugOverdrawSimulationPass = new DebugOverdrawSimulationPass(debugOverdrawMaterial, debugSplitMaterial, settings)
+            _debugOverdrawSimulationPass = new DebugOverdrawSimulationPass(settings)
             {
                 renderPassEvent = RenderPassEvent.AfterRenderingPostProcessing
             };

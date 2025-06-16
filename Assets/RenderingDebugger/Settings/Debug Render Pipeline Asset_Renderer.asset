@@ -12,18 +12,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0edc14cfc3de1864e815d7ce6a0e94cc, type: 3}
   m_Name: OverdrawDetection
   m_EditorClassIdentifier: 
-  m_Active: 1
+  m_Active: 0
   settings:
     enableOverdrawDetection: 1
     overdrawVisualizationCS: {fileID: 7200000, guid: 92e6cdfe8070c3843ae913a2aa38ab41,
       type: 3}
     overdrawDisplayMaterial: {fileID: 2100000, guid: 858038ef6225d3c4e9652979ba39efe4,
       type: 2}
-    overdrawDisplayHeightRatio: 0.5
-    overdrawIntensity: 0.8
+    overdrawDisplayHeightRatio: 0.687
+    overdrawIntensity: 0.926
     maxOverdrawThreshold: 5
     minOverdrawColor: {r: 0, g: 0, b: 0, a: 1}
-    maxOverdrawColor: {r: 1, g: 0.0956518, b: 0, a: 1}
+    maxOverdrawColor: {r: 0, g: 0.7450981, b: 1, a: 1}
     updateEveryFrame: 1
 --- !u!114 &-7186481058024131514
 MonoBehaviour:
@@ -37,12 +37,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 67e63bb2710bff548a59597ecee8b820, type: 3}
   m_Name: DebugOverdraw
   m_EditorClassIdentifier: 
-  m_Active: 0
-  debugOverdrawMaterial: {fileID: 2100000, guid: 0d710be45eae1cf4eaa74de319ba956f,
-    type: 2}
-  debugSplitMaterial: {fileID: 2100000, guid: 7b8aab5f849033f468f1f4a553548b4c, type: 2}
-  overdrawDetectionThreshold: 30
-  debugDisplayHeightRatio: 0.5
+  m_Active: 1
+  settings:
+    DebugOverdrawMaterial: {fileID: 2100000, guid: 0d710be45eae1cf4eaa74de319ba956f,
+      type: 2}
+    DebugSplitMaterial: {fileID: 2100000, guid: 7b8aab5f849033f468f1f4a553548b4c,
+      type: 2}
+    OverdrawDetectionThreshold: 5
+    DebugDisplayHeightRatio: 0.5
+    debugOverdrawColor: {r: 0.05660379, g: 0.05660379, b: 0.05660379, a: 0}
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
