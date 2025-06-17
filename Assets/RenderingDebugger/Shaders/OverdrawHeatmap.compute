@@ -11,7 +11,7 @@ float4 _MaxOverdrawColor;
 
 float3 GetLinearHeatmapColor(uint overdrawCount, uint maxThreshold)
 {
-    if (overdrawCount == 0)
+    if (overdrawCount <= 1)
         return _MinOverdrawColor.rgb;
     
     // 计算归一化的overdraw值 (0到1之间)

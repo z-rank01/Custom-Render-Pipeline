@@ -1,3 +1,4 @@
+using UnityEditor.ShaderGraph;
 using UnityEngine;
 
 namespace RenderingDebugger.Scripts
@@ -32,5 +33,15 @@ namespace RenderingDebugger.Scripts
         public static readonly int OverdrawBlendOriginalTextureId = Shader.PropertyToID("_OriginalTexture");
         public static readonly int OverdrawBlendOverdrawIntensityId = Shader.PropertyToID("_OverdrawIntensity");
         public static readonly int OverdrawBlendDisplayHeightRatioId = Shader.PropertyToID("_OverdrawDisplayHeightRatio");
+
+        // Debug Overdraw Overlapped 着色器属性ID
+        public static readonly int OverdrawOverlappedOriginalColorTextureId = Shader.PropertyToID("_OverdrawOverlappedOriginalColoTexture");
+        public static readonly int OverdrawOverlappedOriginalDepthTextureId = Shader.PropertyToID("_OverdrawOverlappedOriginalDepthTexture");
+        public static readonly int OverdrawOverlappedCountBufferId = Shader.PropertyToID("_OverdrawOverlappedCounters");
+        public static readonly int OverdrawOverlappedDisplayHeightRatioId = Shader.PropertyToID("_OverdrawOverlappedDisplayHeightRatio");
+        public static readonly int OverdrawOverlappedIntensityId = Shader.PropertyToID("_OverdrawOverlappedIntensity");
+        public static readonly int OverdrawOverlappedMinColorId = Shader.PropertyToID("_OverdrawOverlappedMinColor");
+        public static readonly int OverdrawOverlappedMaxColorId = Shader.PropertyToID("_OverdrawOverlappedMaxColor");
+        public static readonly int OverdrawOverlappedThresholdId = Shader.PropertyToID("_OverdrawOverlappedThreshold");
     }
 }

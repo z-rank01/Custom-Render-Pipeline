@@ -20,7 +20,7 @@ namespace RenderingDebugger.Scripts
         private ComputeBuffer _overdrawCountBuffer;
         private int _screenWidth, _screenHeight;
         private ComputeShader _overdrawVisualizationCs;
-        private bool isOverdrawEnabled { get; set; } = false;
+        public bool IsOverdrawEnabled { get; set; } = false;
 
         private OverdrawAccumulator() { }
 
@@ -29,7 +29,7 @@ namespace RenderingDebugger.Scripts
         // 检查分辨率是否变化，如果变化则重新初始化
         public bool CheckResolution(int screenWidth, int screenHeight)
         {
-            return !isOverdrawEnabled || _screenWidth != screenWidth || _screenHeight != screenHeight;
+            return !IsOverdrawEnabled || _screenWidth != screenWidth || _screenHeight != screenHeight;
         }
 
         private void UpdateComputeBufferAndVariables(int screenWidth, int screenHeight)
@@ -42,8 +42,8 @@ namespace RenderingDebugger.Scripts
 
         private void RecreateBuffersAndTextures()
         {
-            // 释放旧的缓冲区
-            _overdrawCountBuffer?.Release();
+            // 释放旧的缓冲区和纹理
+            Cleanup();
 
             // 创建新的计数缓冲区
             _overdrawCountBuffer = new ComputeBuffer(
@@ -51,10 +51,6 @@ namespace RenderingDebugger.Scripts
                 sizeof(uint),
                 ComputeBufferType.Default,
                 ComputeBufferMode.Immutable);
-
-            // 释放旧的可视化纹理
-            if (overdrawVisualizationTexture != null)
-                overdrawVisualizationTexture.Release();
 
             // 创建新的可视化纹理
             overdrawVisualizationTexture = new RenderTexture(_screenWidth, _screenHeight, 0, RenderTextureFormat.ARGB32)
@@ -75,7 +71,7 @@ namespace RenderingDebugger.Scripts
 
         public void EnableOverdrawDetection(int screenWidth, int screenHeight, ComputeShader visualizationCS)
         {
-            isOverdrawEnabled = true;
+            IsOverdrawEnabled = true;
             _overdrawVisualizationCs = visualizationCS;
 
             // 创建或重新分配计数缓冲区
@@ -86,7 +82,36 @@ namespace RenderingDebugger.Scripts
         public void SetupUAVBinding(CommandBuffer cmd)
         {
             if (_overdrawCountBuffer == null) return;
-            cmd.SetRandomWriteTarget(1, _overdrawCountBuffer);
+            var graphicsDeviceType = SystemInfo.graphicsDeviceType;
+
+            switch (graphicsDeviceType)
+            {
+                case GraphicsDeviceType.Direct3D11:
+                case GraphicsDeviceType.Direct3D12:
+                    // DirectX使用UAV绑定
+                    cmd.SetRandomWriteTarget(1, _overdrawCountBuffer);
+                    break;
+
+                case GraphicsDeviceType.Vulkan:
+                    // Vulkan使用SSBO绑定
+                    cmd.SetGlobalBuffer(DebugConstant.OverdrawCountBufferId, _overdrawCountBuffer);
+                    break;
+
+                case GraphicsDeviceType.Metal:
+                    // Metal使用设备缓冲区绑定
+                    cmd.SetGlobalBuffer(DebugConstant.OverdrawCountBufferId, _overdrawCountBuffer);
+                    break;
+
+                case GraphicsDeviceType.OpenGLCore:
+                case GraphicsDeviceType.OpenGLES3:
+                    // OpenGL使用SSBO绑定
+                    cmd.SetGlobalBuffer(DebugConstant.OverdrawCountBufferId, _overdrawCountBuffer);
+                    break;
+
+                default:
+                    Debug.LogWarning($"Overdraw detection not supported on {graphicsDeviceType}");
+                    break;
+            }
             // Debug.Log("Set UAV binding for overdraw counter buffer");
         }
 
@@ -104,7 +129,7 @@ namespace RenderingDebugger.Scripts
 
         public void GenerateVisualization(CommandBuffer cmd, uint maxOverdrawThreshold = 20, Color minColor = default, Color maxColor = default)
         {
-            if (!isOverdrawEnabled || _overdrawVisualizationCs == null)
+            if (!IsOverdrawEnabled || _overdrawVisualizationCs == null)
                 return;
 
             // 如果没有提供颜色，使用默认值
@@ -133,7 +158,8 @@ namespace RenderingDebugger.Scripts
 
         public void DisableOverdrawDetection()
         {
-            isOverdrawEnabled = false;
+            IsOverdrawEnabled = false;
+            Cleanup();
             Shader.SetGlobalInt(DebugConstant.OverdrawEnableId, 0);
             Shader.DisableKeyword(DebugConstant.OverdrawEnableKeyword);
             Debug.Log("Overdraw detection disabled");
@@ -169,7 +195,7 @@ namespace RenderingDebugger.Scripts
             return data;
         }
 
-        public void Cleanup()
+        private void Cleanup()
         {
             _overdrawCountBuffer?.Release();
             _overdrawCountBuffer = null;
@@ -180,7 +206,6 @@ namespace RenderingDebugger.Scripts
                 overdrawVisualizationTexture = null;
             }
 
-            isOverdrawEnabled = false;
             Debug.Log("Overdraw accumulator cleaned up");
         }
 

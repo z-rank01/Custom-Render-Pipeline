@@ -146,7 +146,6 @@ namespace RenderingDebugger.Scripts
             {
                 _tempColorTarget?.Release();
                 OverdrawAccumulator.Instance.DisableOverdrawDetection();
-                OverdrawAccumulator.Instance.Cleanup();
                 _isInitialized = false;
             }
         }
