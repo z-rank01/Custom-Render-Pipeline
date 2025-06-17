@@ -10,6 +10,7 @@ namespace Custom_Render_Pipeline.Runtime
 {
     public partial class CameraRenderer
     {
+        private string m_sampleName { get; set; }
         private ScriptableRenderContext m_context;
         private Camera m_camera;
         private CommandBuffer m_commandBuffer;
@@ -164,5 +165,13 @@ namespace Custom_Render_Pipeline.Runtime
         {
             Profiler.EndSample();
         }
+        
+        #if !UNITY_EDITOR
+        // tmp implementations for editor only methods
+        private partial void DrawUnsupportedShader() { }
+        private partial void SetupSceneWindow() { }
+        private partial void DrawGizmo() { }
+        private partial void SetupBufferName(string targetBufferName) { }
+        #endif
     }
 }

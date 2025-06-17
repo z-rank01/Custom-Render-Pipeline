@@ -30,8 +30,6 @@ namespace Custom_Render_Pipeline.Runtime
 
         private static Material m_errorMaterial;
 
-        private string m_sampleName { get; set; }
-
         // method
         private partial void SetupSceneWindow()
         {
@@ -82,7 +80,7 @@ namespace Custom_Render_Pipeline.Runtime
 
 #else
 
-    const string sampleName = cmdBufferName;
+    // const string sampleName = cmdBufferName;
 
 #endif
 
