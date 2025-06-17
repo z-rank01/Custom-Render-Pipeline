@@ -82,36 +82,7 @@ namespace RenderingDebugger.Scripts
         public void SetupUAVBinding(CommandBuffer cmd)
         {
             if (_overdrawCountBuffer == null) return;
-            var graphicsDeviceType = SystemInfo.graphicsDeviceType;
-
-            switch (graphicsDeviceType)
-            {
-                case GraphicsDeviceType.Direct3D11:
-                case GraphicsDeviceType.Direct3D12:
-                    // DirectX使用UAV绑定
-                    cmd.SetRandomWriteTarget(1, _overdrawCountBuffer);
-                    break;
-
-                case GraphicsDeviceType.Vulkan:
-                    // Vulkan使用SSBO绑定
-                    cmd.SetGlobalBuffer(DebugConstant.OverdrawCountBufferId, _overdrawCountBuffer);
-                    break;
-
-                case GraphicsDeviceType.Metal:
-                    // Metal使用设备缓冲区绑定
-                    cmd.SetGlobalBuffer(DebugConstant.OverdrawCountBufferId, _overdrawCountBuffer);
-                    break;
-
-                case GraphicsDeviceType.OpenGLCore:
-                case GraphicsDeviceType.OpenGLES3:
-                    // OpenGL使用SSBO绑定
-                    cmd.SetGlobalBuffer(DebugConstant.OverdrawCountBufferId, _overdrawCountBuffer);
-                    break;
-
-                default:
-                    Debug.LogWarning($"Overdraw detection not supported on {graphicsDeviceType}");
-                    break;
-            }
+            cmd.SetRandomWriteTarget(1, _overdrawCountBuffer);
             // Debug.Log("Set UAV binding for overdraw counter buffer");
         }
 
