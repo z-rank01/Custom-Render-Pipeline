@@ -1,6 +1,3 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Profiling;
 using UnityEngine.Rendering;
@@ -10,6 +7,8 @@ namespace Custom_Render_Pipeline.Runtime
 {
     public partial class CameraRenderer
     {
+        private string m_sampleName { get; set; }
+        
         private ScriptableRenderContext m_context;
         private Camera m_camera;
         private CommandBuffer m_commandBuffer;
@@ -164,5 +163,25 @@ namespace Custom_Render_Pipeline.Runtime
         {
             Profiler.EndSample();
         }
+        
+        // tmp implementation of edtior partial methods
+        #if !UNITY_EDITOR
+        private partial void DrawUnsupportedShader()
+        {
+            // No editor specific implementation in runtime
+        }
+        private partial void DrawGizmo()
+        {
+            // No editor specific implementation in runtime
+        }
+        private partial void SetupSceneWindow()
+        {
+            // No editor specific implementation in runtime
+        }
+        private partial void SetupBufferName(string targetBufferName)
+        {
+            // No editor specific implementation in runtime
+        }
+        #endif
     }
 }
