@@ -1,4 +1,4 @@
-// Assets/Shaders/Include/DebugOverdrawFragmentDetection.hlsl
+// Assets/RenderingDebugger/Shaders/DebugOverdrawFragmentAccumulator.hlsl
 #ifndef OVERDRAW_DETECTION_INCLUDED
 #define OVERDRAW_DETECTION_INCLUDED
 

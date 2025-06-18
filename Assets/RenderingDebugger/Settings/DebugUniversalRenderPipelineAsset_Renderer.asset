@@ -17,6 +17,7 @@ MonoBehaviour:
     enableOverdrawDetection: 1
     overdrawVisualizationCS: {fileID: 7200000, guid: 92e6cdfe8070c3843ae913a2aa38ab41,
       type: 3}
+    useDirectBufferRead: 1
     overdrawDisplayMaterial: {fileID: 2100000, guid: 858038ef6225d3c4e9652979ba39efe4,
       type: 2}
     overdrawDisplayHeightRatio: 0.55
