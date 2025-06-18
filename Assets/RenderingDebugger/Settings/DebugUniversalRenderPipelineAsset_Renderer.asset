@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!114 &-7734156628155387538
+--- !u!114 &-7448256357547903326
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -10,37 +10,21 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0edc14cfc3de1864e815d7ce6a0e94cc, type: 3}
-  m_Name: DebugFragmentOverdrawDetection
+  m_Name: DebugOverdrawFragmentDetection
   m_EditorClassIdentifier: 
-  m_Active: 0
+  m_Active: 1
   settings:
     enableOverdrawDetection: 1
     overdrawVisualizationCS: {fileID: 7200000, guid: 92e6cdfe8070c3843ae913a2aa38ab41,
       type: 3}
     overdrawDisplayMaterial: {fileID: 2100000, guid: 858038ef6225d3c4e9652979ba39efe4,
       type: 2}
-    overdrawDisplayHeightRatio: 0.7
-    overdrawIntensity: 0.9
-    maxOverdrawThreshold: 5
+    overdrawDisplayHeightRatio: 0.55
+    overdrawIntensity: 0.8
+    maxOverdrawThreshold: 6
     minOverdrawColor: {r: 0, g: 0, b: 0, a: 1}
-    maxOverdrawColor: {r: 1, g: 0.6018832, b: 0, a: 1}
+    maxOverdrawColor: {r: 1, g: 0.46568164, b: 0, a: 1}
     updateEveryFrame: 1
---- !u!114 &-7186481058024131514
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 67e63bb2710bff548a59597ecee8b820, type: 3}
-  m_Name: DebugOverdraw
-  m_EditorClassIdentifier: 
-  m_Active: 0
-  settings: {DebugOverdrawMaterial: {fileID: 2100000, guid: 0d710be45eae1cf4eaa74de319ba956f,
-      type: 2}, DebugSplitMaterial: {fileID: 2100000, guid: 7b8aab5f849033f468f1f4a553548b4c,
-      type: 2}, OverdrawDetectionThreshold: 10, DebugDisplayHeightRatio: 0.527}
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -51,19 +35,19 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: de640fe3d0db1804a85f9fc8f5cadab6, type: 3}
-  m_Name: DebugRenderPipelineAssetRenderer
+  m_Name: DebugUniversalRenderPipelineAsset_Renderer
   m_EditorClassIdentifier: 
   debugShaders:
     debugReplacementPS: {fileID: 4800000, guid: cf852408f2e174538bcd9b7fda1c5ae7,
       type: 3}
     hdrDebugViewPS: {fileID: 4800000, guid: 573620ae32aec764abd4d728906d2587, type: 3}
   m_RendererFeatures:
-  - {fileID: 7907941500654157715}
-  - {fileID: -7734156628155387538}
-  - {fileID: 5399181291172074315}
-  m_RendererFeatureMap: 937f0f93e5a6be6d6eb1902586c1aa944b133f3ac7beed4a
+  - {fileID: 4038548064784091606}
+  - {fileID: -7448256357547903326}
+  - {fileID: 6173375673686872387}
+  m_RendererFeatureMap: d609cc5911ce0b38a2f64f2c4e7aa29843d1249f773cac55
   m_UseNativeRenderPass: 0
-  postProcessData: {fileID: 0}
+  postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   xrSystemData: {fileID: 11400000, guid: 60e1133243b97e347b653163a8c01b64, type: 2}
   shaders:
     blitPS: {fileID: 4800000, guid: c17132b1f77d20942aa75f8429c0f8bc, type: 3}
@@ -98,13 +82,29 @@ MonoBehaviour:
     passOperation: 2
     failOperation: 0
     zFailOperation: 0
-  m_ShadowTransparentReceive: 0
+  m_ShadowTransparentReceive: 1
   m_RenderingMode: 0
   m_DepthPrimingMode: 0
-  m_CopyDepthMode: 2
+  m_CopyDepthMode: 1
   m_AccurateGbufferNormals: 0
   m_IntermediateTextureMode: 1
---- !u!114 &5399181291172074315
+--- !u!114 &4038548064784091606
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c01a80b1eef895844b2da35830db1ad0, type: 3}
+  m_Name: DebugDepth
+  m_EditorClassIdentifier: 
+  m_Active: 0
+  debugDepthMaterial: {fileID: 2100000, guid: 67ef3e38f748f5349b54d2339e5008de, type: 2}
+  displayHeightRatio: 0.5
+  depthDetectionThreshold: 20
+--- !u!114 &6173375673686872387
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -119,22 +119,6 @@ MonoBehaviour:
   m_Active: 0
   settings:
     enableOverdrawDetection: 1
-    enableDepthPriming: 0
+    enableDepthPriming: 1
     overdrawOverlappedMaterial: {fileID: 2100000, guid: 84f207800b8ef774b9ff3f3545bf3bdd,
       type: 2}
---- !u!114 &7907941500654157715
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c01a80b1eef895844b2da35830db1ad0, type: 3}
-  m_Name: DepthDebugOutput
-  m_EditorClassIdentifier: 
-  m_Active: 0
-  debugDepthMaterial: {fileID: 2100000, guid: 67ef3e38f748f5349b54d2339e5008de, type: 2}
-  displayHeightRatio: 0.5
-  depthDetectionThreshold: 20
