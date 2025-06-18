@@ -30,8 +30,14 @@ Shader "RenderingDebugger/DebugOverdrawFragmentBlend"
                 float2 uv : TEXCOORD0;
             };
             
-            TEXTURE2D(_OverdrawTexture);
-            SAMPLER(sampler_OverdrawTexture);
+            TEXTURE2D(_OverdrawTexture_R);
+            SAMPLER(sampler_OverdrawTexture_R);
+            TEXTURE2D(_OverdrawTexture_G);
+            SAMPLER(sampler_OverdrawTexture_G);
+            TEXTURE2D(_OverdrawTexture_B);
+            SAMPLER(sampler_OverdrawTexture_B);
+            TEXTURE2D(_OverdrawTexture_A);
+            SAMPLER(sampler_OverdrawTexture_A);
             TEXTURE2D(_OriginalTexture);
             SAMPLER(sampler_OriginalTexture);
             float _OverdrawIntensity;
@@ -53,7 +59,13 @@ Shader "RenderingDebugger/DebugOverdrawFragmentBlend"
             float4 frag(Varyings input) : SV_Target
             {
                 float4 originalColor = SAMPLE_TEXTURE2D(_OriginalTexture, sampler_OriginalTexture, input.uv);
-                float4 overdrawColor = SAMPLE_TEXTURE2D(_OverdrawTexture, sampler_OverdrawTexture, input.uv);
+                
+                // 从四张单通道纹理采样并组合成四通道颜色
+                float r = SAMPLE_TEXTURE2D(_OverdrawTexture_R, sampler_OverdrawTexture_R, input.uv).r;
+                float g = SAMPLE_TEXTURE2D(_OverdrawTexture_G, sampler_OverdrawTexture_G, input.uv).r;
+                float b = SAMPLE_TEXTURE2D(_OverdrawTexture_B, sampler_OverdrawTexture_B, input.uv).r;
+                float a = SAMPLE_TEXTURE2D(_OverdrawTexture_A, sampler_OverdrawTexture_A, input.uv).r;
+                float4 overdrawColor = float4(r, g, b, a);
                 
                 // 不同的混合模式
                 float4 finalColor;

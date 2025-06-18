@@ -14,7 +14,10 @@ namespace RenderingDebugger.Scripts
         public static readonly int OverdrawEnableId = Shader.PropertyToID("_EnableOverdrawDetection");
         public const string OverdrawEnableKeyword = "ENABLE_OVERDRAW_DETECTION";
 
-        public static readonly int OverdrawVisualizationTextureId = Shader.PropertyToID("_OverdrawVisualizationTexture");
+        public static readonly int OverdrawVisualizationTextureRId = Shader.PropertyToID("_OverdrawVisualizationTexture_R");
+        public static readonly int OverdrawVisualizationTextureGId = Shader.PropertyToID("_OverdrawVisualizationTexture_G");
+        public static readonly int OverdrawVisualizationTextureBId = Shader.PropertyToID("_OverdrawVisualizationTexture_B");
+        public static readonly int OverdrawVisualizationTextureAId = Shader.PropertyToID("_OverdrawVisualizationTexture_A");
         public static readonly int OverdrawVisualizationScreenWidthId = Shader.PropertyToID("_OverdrawScreenWidth");
         public static readonly int OverdrawVisualizationScreenHeightId = Shader.PropertyToID("_OverdrawScreenHeight");
 
@@ -24,7 +27,10 @@ namespace RenderingDebugger.Scripts
         public static readonly int OverdrawComputeMinColorId = Shader.PropertyToID("_MinOverdrawColor");
         public static readonly int OverdrawComputeMaxColorId = Shader.PropertyToID("_MaxOverdrawColor");
 
-        public static readonly int OverdrawBlendOverdrawTextureId = Shader.PropertyToID("_OverdrawTexture");
+        public static readonly int OverdrawBlendTextureRId = Shader.PropertyToID("_OverdrawTexture_R");
+        public static readonly int OverdrawBlendTextureGId = Shader.PropertyToID("_OverdrawTexture_G");
+        public static readonly int OverdrawBlendTextureBId = Shader.PropertyToID("_OverdrawTexture_B");
+        public static readonly int OverdrawBlendTextureAId = Shader.PropertyToID("_OverdrawTexture_A");
         public static readonly int OverdrawBlendOriginalTextureId = Shader.PropertyToID("_OriginalTexture");
         public static readonly int OverdrawBlendOverdrawIntensityId = Shader.PropertyToID("_OverdrawIntensity");
         public static readonly int OverdrawBlendDisplayHeightRatioId = Shader.PropertyToID("_OverdrawDisplayHeightRatio");

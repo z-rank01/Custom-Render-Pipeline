@@ -7,7 +7,7 @@
 #endif
 
 #ifdef OVERDRAW_DETECTION_SUPPORTED
-    RWStructuredBuffer<uint> _OverdrawCounters : register(u1);
+    RWStructuredBuffer<int> _OverdrawCounters : register(u1);
 #endif
 
 int _EnableOverdrawDetection;

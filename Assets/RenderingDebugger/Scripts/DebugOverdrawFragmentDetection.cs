@@ -110,12 +110,19 @@ namespace RenderingDebugger.Scripts
                     DebugOverdrawFragmentAccumulator.Instance.GenerateVisualization(cmd, _settings.maxOverdrawThreshold, _settings.minOverdrawColor, _settings.maxOverdrawColor);
 
                     // 3. 应用 overdraw 可视化到相机目标
-                    var overdrawTexture = DebugOverdrawFragmentAccumulator.Instance.overdrawVisualizationTexture;
-                    if (overdrawTexture != null)
+                    var overdrawTextureR = DebugOverdrawFragmentAccumulator.Instance.overdrawVisualizationTextureR;
+                    var overdrawTextureG = DebugOverdrawFragmentAccumulator.Instance.overdrawVisualizationTextureG;
+                    var overdrawTextureB = DebugOverdrawFragmentAccumulator.Instance.overdrawVisualizationTextureB;
+                    var overdrawTextureA = DebugOverdrawFragmentAccumulator.Instance.overdrawVisualizationTextureA;
+                    
+                    if (overdrawTextureR != null && overdrawTextureG != null && overdrawTextureB != null && overdrawTextureA != null)
                     {
                         // 设置材质参数
                         var material = _settings.overdrawDisplayMaterial;
-                        material.SetTexture(DebugConstant.OverdrawBlendOverdrawTextureId, overdrawTexture);
+                        material.SetTexture(DebugConstant.OverdrawBlendTextureRId, overdrawTextureR);
+                        material.SetTexture(DebugConstant.OverdrawBlendTextureGId, overdrawTextureG);
+                        material.SetTexture(DebugConstant.OverdrawBlendTextureBId, overdrawTextureB);
+                        material.SetTexture(DebugConstant.OverdrawBlendTextureAId, overdrawTextureA);
                         material.SetTexture(DebugConstant.OverdrawBlendOriginalTextureId, _tempColorTarget);
                         material.SetFloat(DebugConstant.OverdrawBlendOverdrawIntensityId, _settings.overdrawIntensity);
                         material.SetFloat(DebugConstant.OverdrawBlendDisplayHeightRatioId,  _settings.overdrawDisplayHeightRatio);
@@ -126,7 +133,7 @@ namespace RenderingDebugger.Scripts
                     }
                     else
                     {
-                        Debug.LogWarning("Overdraw visualization texture is null!");
+                        Debug.LogWarning("Overdraw visualization textures are null!");
                     }
                 }
 
@@ -169,7 +176,10 @@ namespace RenderingDebugger.Scripts
         private int _screenWidth, _screenHeight;
         private ComputeShader _overdrawVisualizationCs;
         private bool isOverdrawEnabled { get; set; } = false;
-        public RenderTexture overdrawVisualizationTexture { get; private set; }
+        public RenderTexture overdrawVisualizationTextureR { get; private set; }
+        public RenderTexture overdrawVisualizationTextureG { get; private set; }
+        public RenderTexture overdrawVisualizationTextureB { get; private set; }
+        public RenderTexture overdrawVisualizationTextureA { get; private set; }
 
 
         #region Public Interface
@@ -221,7 +231,7 @@ namespace RenderingDebugger.Scripts
             if (_overdrawCountBuffer == null) return;
 
             // 清零计数器 - 在渲染开始前调用
-            uint[] zeros = new uint[_overdrawCountBuffer.count];
+            int[] zeros = new int[_overdrawCountBuffer.count];
             _overdrawCountBuffer.SetData(zeros);
 
             // Debug.Log($"Cleared overdraw counters: {_overdrawCountBuffer.count} elements");
@@ -252,7 +262,13 @@ namespace RenderingDebugger.Scripts
             cmd.SetComputeBufferParam(_overdrawVisualizationCs, kernelIndex, DebugConstant.OverdrawCountBufferId,
                 _overdrawCountBuffer);
             cmd.SetComputeTextureParam(_overdrawVisualizationCs, kernelIndex,
-                DebugConstant.OverdrawVisualizationTextureId, overdrawVisualizationTexture);
+                DebugConstant.OverdrawVisualizationTextureRId, overdrawVisualizationTextureR);
+            cmd.SetComputeTextureParam(_overdrawVisualizationCs, kernelIndex,
+                DebugConstant.OverdrawVisualizationTextureGId, overdrawVisualizationTextureG);
+            cmd.SetComputeTextureParam(_overdrawVisualizationCs, kernelIndex,
+                DebugConstant.OverdrawVisualizationTextureBId, overdrawVisualizationTextureB);
+            cmd.SetComputeTextureParam(_overdrawVisualizationCs, kernelIndex,
+                DebugConstant.OverdrawVisualizationTextureAId, overdrawVisualizationTextureA);
             cmd.SetComputeIntParam(_overdrawVisualizationCs, DebugConstant.OverdrawComputeScreenWidthId, _screenWidth);
             cmd.SetComputeIntParam(_overdrawVisualizationCs, DebugConstant.OverdrawComputeScreenHeightId,
                 _screenHeight);
@@ -299,17 +315,38 @@ namespace RenderingDebugger.Scripts
             // 创建新的计数缓冲区
             _overdrawCountBuffer = new ComputeBuffer(
                 _screenWidth * _screenHeight,
-                sizeof(uint),
+                sizeof(int),
                 ComputeBufferType.Default,
                 ComputeBufferMode.Immutable);
 
-            // 创建新的可视化纹理
-            overdrawVisualizationTexture = new RenderTexture(_screenWidth, _screenHeight, 0, RenderTextureFormat.ARGB32)
+            // 创建四张单通道可视化纹理
+            overdrawVisualizationTextureR = new RenderTexture(_screenWidth, _screenHeight, 0, RenderTextureFormat.RFloat)
             {
                 enableRandomWrite = true,
-                name = "OverdrawVisualization"
+                name = "OverdrawVisualization_R"
             };
-            overdrawVisualizationTexture.Create();
+            overdrawVisualizationTextureR.Create();
+
+            overdrawVisualizationTextureG = new RenderTexture(_screenWidth, _screenHeight, 0, RenderTextureFormat.RFloat)
+            {
+                enableRandomWrite = true,
+                name = "OverdrawVisualization_G"
+            };
+            overdrawVisualizationTextureG.Create();
+
+            overdrawVisualizationTextureB = new RenderTexture(_screenWidth, _screenHeight, 0, RenderTextureFormat.RFloat)
+            {
+                enableRandomWrite = true,
+                name = "OverdrawVisualization_B"
+            };
+            overdrawVisualizationTextureB.Create();
+
+            overdrawVisualizationTextureA = new RenderTexture(_screenWidth, _screenHeight, 0, RenderTextureFormat.RFloat)
+            {
+                enableRandomWrite = true,
+                name = "OverdrawVisualization_A"
+            };
+            overdrawVisualizationTextureA.Create();
         }
 
         private void UpdateShaderGlobals()
@@ -325,10 +362,28 @@ namespace RenderingDebugger.Scripts
             _overdrawCountBuffer?.Release();
             _overdrawCountBuffer = null;
 
-            if (overdrawVisualizationTexture)
+            if (overdrawVisualizationTextureR)
             {
-                overdrawVisualizationTexture.Release();
-                overdrawVisualizationTexture = null;
+                overdrawVisualizationTextureR.Release();
+                overdrawVisualizationTextureR = null;
+            }
+
+            if (overdrawVisualizationTextureG)
+            {
+                overdrawVisualizationTextureG.Release();
+                overdrawVisualizationTextureG = null;
+            }
+
+            if (overdrawVisualizationTextureB)
+            {
+                overdrawVisualizationTextureB.Release();
+                overdrawVisualizationTextureB = null;
+            }
+
+            if (overdrawVisualizationTextureA)
+            {
+                overdrawVisualizationTextureA.Release();
+                overdrawVisualizationTextureA = null;
             }
 
             Debug.Log("Overdraw accumulator cleaned up");
@@ -354,13 +409,13 @@ namespace RenderingDebugger.Scripts
             }
 
             // 读取缓冲区数据
-            uint[] data = new uint[_overdrawCountBuffer.count];
+            int[] data = new int[_overdrawCountBuffer.count];
             _overdrawCountBuffer.GetData(data);
 
             // 统计非零数据
             int nonZeroCount = 0;
-            uint maxValue = 0;
-            uint totalSum = 0;
+            int maxValue = 0;
+            int totalSum = 0;
 
             foreach (var t in data)
             {
