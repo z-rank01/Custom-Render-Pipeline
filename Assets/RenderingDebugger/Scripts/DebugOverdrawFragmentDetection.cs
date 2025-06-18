@@ -5,8 +5,13 @@ using UnityEngine.Rendering.Universal;
 
 namespace RenderingDebugger.Scripts
 {
+    [DisallowMultipleRendererFeature("Debug Fragment Overdraw")]
+    [Tooltip("Render feature for debugging fragment overdraw information.")]
     public class DebugOverdrawFragmentDetection : ScriptableRendererFeature
     {
+        public OverdrawDetectionSettings settings = new();
+        private DebugOverdrawFragmentDetectionPass _debugOverdrawFragmentDetectionPass;
+        
         [System.Serializable]
         public class OverdrawDetectionSettings
         {
@@ -23,14 +28,10 @@ namespace RenderingDebugger.Scripts
             [Header("Range map Colors")]
             [ColorUsage(false)] public Color minOverdrawColor = Color.gray;
             [ColorUsage(false)] public Color maxOverdrawColor = Color.white;
-
-            [Header("Performance")]
-            public bool updateEveryFrame = true;
         }
-
-        public OverdrawDetectionSettings settings = new();
-        private DebugOverdrawFragmentDetectionPass _debugOverdrawFragmentDetectionPass;
-
+        
+        #region Renderer Feature Implementation
+        
         public override void Create()
         {
             _debugOverdrawFragmentDetectionPass = new DebugOverdrawFragmentDetectionPass(settings)
@@ -54,7 +55,8 @@ namespace RenderingDebugger.Scripts
                 _debugOverdrawFragmentDetectionPass.Dispose();
             }
         }
-
+        
+        #endregion
 
         private class DebugOverdrawFragmentDetectionPass : ScriptableRenderPass
         {

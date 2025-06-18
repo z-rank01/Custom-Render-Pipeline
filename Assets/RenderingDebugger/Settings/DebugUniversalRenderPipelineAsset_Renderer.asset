@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0edc14cfc3de1864e815d7ce6a0e94cc, type: 3}
   m_Name: DebugOverdrawFragmentDetection
   m_EditorClassIdentifier: 
-  m_Active: 1
+  m_Active: 0
   settings:
     enableOverdrawDetection: 1
     overdrawVisualizationCS: {fileID: 7200000, guid: 92e6cdfe8070c3843ae913a2aa38ab41,
@@ -100,10 +100,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c01a80b1eef895844b2da35830db1ad0, type: 3}
   m_Name: DebugDepth
   m_EditorClassIdentifier: 
-  m_Active: 0
+  m_Active: 1
+  settings:
+    enableDebugOutput: 1
+    displayHeightRatio: 0.5
+    depthDetectionThreshold: 100
   debugDepthMaterial: {fileID: 2100000, guid: 67ef3e38f748f5349b54d2339e5008de, type: 2}
-  displayHeightRatio: 0.5
-  depthDetectionThreshold: 20
 --- !u!114 &6173375673686872387
 MonoBehaviour:
   m_ObjectHideFlags: 0

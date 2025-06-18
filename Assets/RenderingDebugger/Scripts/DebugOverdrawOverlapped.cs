@@ -4,12 +4,13 @@ using UnityEngine.Rendering.Universal;
 
 namespace RenderingDebugger.Scripts
 {
+    [DisallowMultipleRendererFeature("Debug Overlapping Overdraw")]
+    [Tooltip("Render feature for debugging object overlapping overdraw(fillrate) information.")]
     public class DebugOverdrawOverlapped : ScriptableRendererFeature
     {
         public OverlappedSettings settings = new();
         private DebugOverdrawOverlappedPass _debugOverdrawOverlappedPass;
-
-
+        
         [System.Serializable]
         public class OverlappedSettings
         {
@@ -19,6 +20,29 @@ namespace RenderingDebugger.Scripts
             public Material overdrawOverlappedMaterial;
         }
 
+        #region Renderer Feature Implementation
+
+        public override void Create()
+        {
+            _debugOverdrawOverlappedPass = new DebugOverdrawOverlappedPass(settings)
+            {
+                renderPassEvent = RenderPassEvent.AfterRenderingPostProcessing
+            };
+        }
+
+        // Here you can inject one or multiple render passes in the renderer.
+        // This method is called when setting up the renderer once per-camera.
+        public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
+        {
+            renderer.EnqueuePass(_debugOverdrawOverlappedPass);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            _debugOverdrawOverlappedPass?.Dispose();
+        }
+
+        #endregion
 
         class DebugOverdrawOverlappedPass : ScriptableRenderPass
         {
@@ -195,29 +219,6 @@ namespace RenderingDebugger.Scripts
                 renderStateBlock.mask |= RenderStateMask.Depth;
                 return renderStateBlock;
             }
-        }
-
-
-
-        /// <inheritdoc/>
-        public override void Create()
-        {
-            _debugOverdrawOverlappedPass = new DebugOverdrawOverlappedPass(settings)
-            {
-                renderPassEvent = RenderPassEvent.AfterRenderingPostProcessing
-            };
-        }
-
-        // Here you can inject one or multiple render passes in the renderer.
-        // This method is called when setting up the renderer once per-camera.
-        public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
-        {
-            renderer.EnqueuePass(_debugOverdrawOverlappedPass);
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            _debugOverdrawOverlappedPass?.Dispose();
         }
     }
 }
