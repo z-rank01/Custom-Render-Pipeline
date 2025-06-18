@@ -1,0 +1,36 @@
+#pragma kernel VisualizeOverdraw
+
+RWTexture2D<float4> _OverdrawVisualizationTexture;
+RWStructuredBuffer<uint> _OverdrawCounters;
+
+uint _ComputeScreenWidth;
+uint _ComputeScreenHeight;
+uint _MaxOverdrawThreshold;
+float4 _MinOverdrawColor;
+float4 _MaxOverdrawColor;
+
+float3 GetLinearHeatmapColor(uint overdrawCount, uint maxThreshold)
+{
+    if (overdrawCount <= 1)
+        return _MinOverdrawColor.rgb;
+    
+    // 计算归一化的overdraw值 (0到1之间)
+    float normalizedCount = saturate((float)overdrawCount / (float)maxThreshold);
+    
+    // 在最小颜色和最大颜色之间进行线性插值
+    float3 color = lerp(_MinOverdrawColor.rgb, _MaxOverdrawColor.rgb, normalizedCount);
+    return color;
+}
+
+[numthreads(8,8,1)]
+void VisualizeOverdraw(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _ComputeScreenWidth || id.y >= _ComputeScreenHeight)
+        return;
+
+    uint index = id.y * _ComputeScreenWidth + id.x;
+    uint overdrawCount = _OverdrawCounters[index];
+    
+    float3 heatmapColor = GetLinearHeatmapColor(overdrawCount, _MaxOverdrawThreshold);
+    _OverdrawVisualizationTexture[id.xy] = float4(heatmapColor, 1.0);
+}
