@@ -51,7 +51,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: de640fe3d0db1804a85f9fc8f5cadab6, type: 3}
-  m_Name: Debug Render Pipeline Asset_Renderer
+  m_Name: DebugRenderPipelineAssetRenderer
   m_EditorClassIdentifier: 
   debugShaders:
     debugReplacementPS: {fileID: 4800000, guid: cf852408f2e174538bcd9b7fda1c5ae7,
@@ -116,7 +116,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dd17dd89f74a7814893984d281f70efd, type: 3}
   m_Name: DebugOverdrawOverlapped
   m_EditorClassIdentifier: 
-  m_Active: 1
+  m_Active: 0
   settings:
     enableOverdrawDetection: 1
     enableDepthPriming: 0
