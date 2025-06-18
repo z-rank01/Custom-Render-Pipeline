@@ -15,15 +15,8 @@ namespace RenderingDebugger.Scripts
         {
             [Header("Overdraw Settings")]
             public bool enableOverdrawDetection = true;
-            public Material overdrawVisualizationMaterial;
-            public Material overdrawCountMaterial;
-
-            [Header("Visualization Settings")]
-            [Range(0f, 1f)] public float overdrawDisplayHeightRatio = 0.5f;
-            [Range(0f, 1f)] public float overdrawIntensity = 0.7f;
-            [Range(1, 50)] public uint maxOverdrawThreshold = 20;
-            [ColorUsage(false)] public Color minOverdrawColor = Color.gray;
-            [ColorUsage(false)] public Color maxOverdrawColor = Color.white;
+            public bool enableDepthPriming = true;
+            public Material overdrawOverlappedMaterial;
         }
 
 
@@ -42,6 +35,12 @@ namespace RenderingDebugger.Scripts
 
             public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
             {
+                if (!_settings.enableOverdrawDetection || !_settings.overdrawOverlappedMaterial)
+                {
+                    Debug.LogWarning("Overdraw detection is disabled or material is not set.");
+                    return;
+                }
+                
                 var countDescriptor = renderingData.cameraData.cameraTargetDescriptor;
                 countDescriptor.colorFormat = RenderTextureFormat.RFloat;
                 countDescriptor.depthBufferBits = 0;
@@ -69,6 +68,12 @@ namespace RenderingDebugger.Scripts
 
             public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
             {
+                if (!_settings.enableOverdrawDetection || !_settings.overdrawOverlappedMaterial)
+                {
+                    Debug.LogWarning("Overdraw detection is disabled or material is not set.");
+                    return;
+                }
+                
                 var cmd = CommandBufferPool.Get("Smart Overdraw Detection");
                 var cameraColorTarget = renderingData.cameraData.renderer.cameraColorTargetHandle;
                 var cameraDepthTarget = renderingData.cameraData.renderer.cameraDepthTargetHandle;
@@ -83,33 +88,18 @@ namespace RenderingDebugger.Scripts
 
                     // 3. 清零 overdraw 计数纹理
                     cmd.SetRenderTarget(cameraColorTarget, cameraDepthTarget);
-                    cmd.ClearRenderTarget(true, true, Color.clear);
+                    cmd.ClearRenderTarget(!_settings.enableDepthPriming, true, Color.clear);
                 }
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
 
                 // 4.  生成 overdraw 计数
-                var sortingSettings = CreateSortingSettings(ref renderingData, false);
+                var sortingSettings = CreateSortingSettings(ref renderingData, _settings.enableDepthPriming);
                 var drawingSettings = CreateDrawingSettings(ref renderingData, sortingSettings);
                 var filteringSettings = CreateFilteringSettings(ref renderingData);
-                var renderStateBlock = CreateRenderStateBlock(ref renderingData, false);
+                var renderStateBlock = CreateRenderStateBlock(ref renderingData, _settings.enableDepthPriming);
                 context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref filteringSettings, ref renderStateBlock);
-
-                // // 5. 生成 overdraw 可视化
-                // using (new ProfilingScope(cmd, new ProfilingSampler("Generate Overdraw Visualization")))
-                // {
-                //     // 设置着色器参数
-                //     cmd.SetGlobalTexture(DebugConstant.OverdrawOverlappedOriginalColorTextureId, _tempColorTarget);
-                //     cmd.SetGlobalTexture(DebugConstant.OverdrawOverlappedCountBufferId, _overdrawCountTexture);
-                //     cmd.SetGlobalFloat(DebugConstant.OverdrawOverlappedDisplayHeightRatioId, _settings.overdrawDisplayHeightRatio);
-                //     cmd.SetGlobalFloat(DebugConstant.OverdrawOverlappedIntensityId, _settings.overdrawIntensity);
-                //     cmd.SetGlobalFloat(DebugConstant.OverdrawOverlappedThresholdId, _settings.maxOverdrawThreshold);
-                //     cmd.SetGlobalColor(DebugConstant.OverdrawOverlappedMinColorId, _settings.minOverdrawColor);
-                //     cmd.SetGlobalColor(DebugConstant.OverdrawOverlappedMaxColorId, _settings.maxOverdrawColor);
-
-                //     cmd.SetRenderTarget(cameraColorTarget);
-                //     cmd.DrawProcedural(Matrix4x4.identity, _settings.overdrawVisualizationMaterial, 0, MeshTopology.Triangles, 3, 1);
-                // }
+                
                 context.ExecuteCommandBuffer(cmd);
                 CommandBufferPool.Release(cmd);
             }
@@ -138,7 +128,7 @@ namespace RenderingDebugger.Scripts
                 var drawingSettings = new DrawingSettings(shaderTagIds[0], sortingSettings)
                 {
                     // Use the overdraw count material to override the default shader
-                    overrideMaterial = _settings.overdrawCountMaterial,
+                    overrideMaterial = _settings.overdrawOverlappedMaterial,
                     overrideMaterialPassIndex = 0,
 
                     perObjectData = renderingData.perObjectData,
@@ -167,8 +157,6 @@ namespace RenderingDebugger.Scripts
                 return new SortingSettings(camera)
                 {
                     criteria = sortFlags,
-                    // criteria = renderingData.cameraData.defaultOpaqueSortFlags
-                    // criteria = SortingCriteria.SortingLayer | SortingCriteria.RenderQueue | SortingCriteria.OptimizeStateChanges | SortingCriteria.CanvasOrder
                 };
             }
 
@@ -198,13 +186,13 @@ namespace RenderingDebugger.Scripts
                     (renderingData.cameraData.renderType == CameraRenderType.Base || renderingData.cameraData.clearDepth))
                 {
                     renderStateBlock.depthState = new DepthState(false, CompareFunction.Equal);
-                    renderStateBlock.mask |= RenderStateMask.Depth;
                 }
                 else
                 {
                     renderStateBlock.depthState = new DepthState(true, CompareFunction.LessEqual);
-                    renderStateBlock.mask |= RenderStateMask.Depth;
                 }
+
+                renderStateBlock.mask |= RenderStateMask.Depth;
                 return renderStateBlock;
             }
         }

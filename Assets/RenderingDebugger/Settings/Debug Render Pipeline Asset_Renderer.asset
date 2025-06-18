@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0edc14cfc3de1864e815d7ce6a0e94cc, type: 3}
-  m_Name: OverdrawDetection
+  m_Name: DebugFragmentOverdrawDetection
   m_EditorClassIdentifier: 
   m_Active: 0
   settings:
@@ -38,20 +38,9 @@ MonoBehaviour:
   m_Name: DebugOverdraw
   m_EditorClassIdentifier: 
   m_Active: 0
-  settings:
-    DebugOverdrawMaterial: {fileID: 2100000, guid: 0d710be45eae1cf4eaa74de319ba956f,
-      type: 2}
-    DebugSplitMaterial: {fileID: 2100000, guid: 7b8aab5f849033f468f1f4a553548b4c,
-      type: 2}
-    OverdrawDetectionThreshold: 5
-    DebugDisplayHeightRatio: 0.5
-    DebugOverdrawColor: {r: 0.1, g: 0.1, b: 0.1, a: 0.5}
-    SrcColorBlendMode: 1
-    DstColorBlendMode: 1
-    SrcAlphaBlendMode: 1
-    DstAlphaBlendMode: 1
-    ColorBlendOp: 0
-    AlphaBlendOp: 0
+  settings: {DebugOverdrawMaterial: {fileID: 2100000, guid: 0d710be45eae1cf4eaa74de319ba956f,
+      type: 2}, DebugSplitMaterial: {fileID: 2100000, guid: 7b8aab5f849033f468f1f4a553548b4c,
+      type: 2}, OverdrawDetectionThreshold: 10, DebugDisplayHeightRatio: 0.527}
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -70,10 +59,9 @@ MonoBehaviour:
     hdrDebugViewPS: {fileID: 4800000, guid: 573620ae32aec764abd4d728906d2587, type: 3}
   m_RendererFeatures:
   - {fileID: 7907941500654157715}
-  - {fileID: -7186481058024131514}
   - {fileID: -7734156628155387538}
   - {fileID: 5399181291172074315}
-  m_RendererFeatureMap: 937f0f93e5a6be6d46f465a78d7d449c6eb1902586c1aa944b133f3ac7beed4a
+  m_RendererFeatureMap: 937f0f93e5a6be6d6eb1902586c1aa944b133f3ac7beed4a
   m_UseNativeRenderPass: 0
   postProcessData: {fileID: 0}
   xrSystemData: {fileID: 11400000, guid: 60e1133243b97e347b653163a8c01b64, type: 2}
@@ -112,7 +100,7 @@ MonoBehaviour:
     zFailOperation: 0
   m_ShadowTransparentReceive: 0
   m_RenderingMode: 0
-  m_DepthPrimingMode: 2
+  m_DepthPrimingMode: 0
   m_CopyDepthMode: 2
   m_AccurateGbufferNormals: 0
   m_IntermediateTextureMode: 1
@@ -128,18 +116,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dd17dd89f74a7814893984d281f70efd, type: 3}
   m_Name: DebugOverdrawOverlapped
   m_EditorClassIdentifier: 
-  m_Active: 0
+  m_Active: 1
   settings:
     enableOverdrawDetection: 1
-    overdrawVisualizationMaterial: {fileID: 2100000, guid: 035b283e155955a4097431e998e9ac05,
+    enableDepthPriming: 0
+    overdrawOverlappedMaterial: {fileID: 2100000, guid: 84f207800b8ef774b9ff3f3545bf3bdd,
       type: 2}
-    overdrawCountMaterial: {fileID: 2100000, guid: 84f207800b8ef774b9ff3f3545bf3bdd,
-      type: 2}
-    overdrawDisplayHeightRatio: 1
-    overdrawIntensity: 1
-    maxOverdrawThreshold: 3
-    minOverdrawColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    maxOverdrawColor: {r: 1, g: 0, b: 0, a: 1}
 --- !u!114 &7907941500654157715
 MonoBehaviour:
   m_ObjectHideFlags: 0

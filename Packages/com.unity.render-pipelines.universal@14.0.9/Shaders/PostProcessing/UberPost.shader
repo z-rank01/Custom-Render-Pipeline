@@ -22,7 +22,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
         #pragma target 5.0
         #pragma multi_compile _ ENABLE_OVERDRAW_DETECTION
 #ifdef ENABLE_OVERDRAW_DETECTION
-        #include "Assets/RenderingDebugger/Shaders/OverdrawAccumulator.hlsl"
+        #include "Assets/RenderingDebugger/Shaders/DebugOverdrawFragmentAccumulator.hlsl"
 #endif
 
         #ifdef HDR_ENCODING
