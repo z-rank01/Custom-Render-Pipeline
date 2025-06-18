@@ -8,10 +8,7 @@ namespace Custom_Render_Pipeline.Runtime
     public partial class CameraRenderer
     {
         private string m_sampleName { get; set; }
-<<<<<<< HEAD:Assets/CustomRenderPipeline/Scripts/Custom Render Pipeline/Runtime/CameraRenderer.cs
         
-=======
->>>>>>> feature/rendering_debugger:Assets/Scripts/Custom Render Pipeline/Runtime/CameraRenderer.cs
         private ScriptableRenderContext m_context;
         private Camera m_camera;
         private CommandBuffer m_commandBuffer;
@@ -167,7 +164,6 @@ namespace Custom_Render_Pipeline.Runtime
             Profiler.EndSample();
         }
         
-<<<<<<< HEAD:Assets/CustomRenderPipeline/Scripts/Custom Render Pipeline/Runtime/CameraRenderer.cs
         // tmp implementation of edtior partial methods
         #if !UNITY_EDITOR
         private partial void DrawUnsupportedShader()
@@ -186,14 +182,6 @@ namespace Custom_Render_Pipeline.Runtime
         {
             // No editor specific implementation in runtime
         }
-=======
-        #if !UNITY_EDITOR
-        // tmp implementations for editor only methods
-        private partial void DrawUnsupportedShader() { }
-        private partial void SetupSceneWindow() { }
-        private partial void DrawGizmo() { }
-        private partial void SetupBufferName(string targetBufferName) { }
->>>>>>> feature/rendering_debugger:Assets/Scripts/Custom Render Pipeline/Runtime/CameraRenderer.cs
         #endif
     }
 }

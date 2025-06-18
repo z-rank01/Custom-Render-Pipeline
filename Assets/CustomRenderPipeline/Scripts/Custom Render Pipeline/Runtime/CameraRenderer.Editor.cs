@@ -29,12 +29,7 @@ namespace Custom_Render_Pipeline.Runtime
         };
 
         private static Material m_errorMaterial;
-
-<<<<<<< HEAD:Assets/CustomRenderPipeline/Scripts/Custom Render Pipeline/Runtime/CameraRenderer.Editor.cs
         
-
-=======
->>>>>>> feature/rendering_debugger:Assets/Scripts/Custom Render Pipeline/Runtime/CameraRenderer.Editor.cs
         // method
         private partial void SetupSceneWindow()
         {
