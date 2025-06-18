@@ -3,7 +3,7 @@
 
 // Overdraw Detection
 #ifdef ENABLE_OVERDRAW_DETECTION
-#include "Assets/RenderingDebugger/Shaders/OverdrawAccumulator.hlsl"
+#include "Assets/RenderingDebugger/Shaders/DebugOverdrawFragmentAccumulator.hlsl"
 #endif
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"

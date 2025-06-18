@@ -1,4 +1,4 @@
-Shader "RenderingDebugger/OverdrawBlend"
+Shader "RenderingDebugger/DebugOverdrawFragmentBlend"
 {
     SubShader
     {

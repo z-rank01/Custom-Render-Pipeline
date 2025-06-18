@@ -1,4 +1,4 @@
-// Assets/Shaders/Include/OverdrawDetection.hlsl
+// Assets/Shaders/Include/DebugOverdrawFragmentDetection.hlsl
 #ifndef OVERDRAW_DETECTION_INCLUDED
 #define OVERDRAW_DETECTION_INCLUDED
 
@@ -36,4 +36,4 @@ void RecordOverdrawSimple(float4 svPosition)
 #endif
 }
 
-#endif // OVERDRAW_DETECTION_INCLUDED
+#endif // DEBUG_OVERDRAW_FRAGMENT_DETECTION_INCLUDED
