@@ -8,7 +8,10 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/CustomRenderPipeline/Scenes/InitScene.unity
     guid: 99c9720ab356a0642a771bea13969a05
-  - enabled: 1
+  - enabled: 0
     path: Assets/RenderingDebugger/Scenes/SampleLit.unity
     guid: b8c8dcb7904b5a245ad4997d21af39b4
+  - enabled: 1
+    path: Assets/RenderingDebugger/Scenes/SampleLit2.unity
+    guid: 6b01b3ef59d28494aaefbc1e468b18e4
   m_configObjects: {}

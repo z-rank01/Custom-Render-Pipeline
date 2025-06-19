@@ -8,23 +8,23 @@ namespace RenderingDebugger.Scripts
     [Tooltip("Render feature for debugging object overlapping overdraw(fillrate) information.")]
     public class DebugOverdrawOverlapped : ScriptableRendererFeature
     {
-        public OverlappedSettings settings = new();
+        public OverlappedSettings Settings = new();
         private DebugOverdrawOverlappedPass _debugOverdrawOverlappedPass;
         
         [System.Serializable]
         public class OverlappedSettings
         {
             [Header("Overdraw Settings")]
-            public bool enableOverdrawDetection = true;
-            public bool enableDepthPriming = true;
-            public Material overdrawOverlappedMaterial;
+            public bool EnableOverdrawDetection = true;
+            public bool EnableDepthPriming = true;
+            public Material OverdrawOverlappedMaterial;
         }
 
         #region Renderer Feature Implementation
 
         public override void Create()
         {
-            _debugOverdrawOverlappedPass = new DebugOverdrawOverlappedPass(settings)
+            _debugOverdrawOverlappedPass = new DebugOverdrawOverlappedPass(Settings)
             {
                 renderPassEvent = RenderPassEvent.AfterRenderingPostProcessing
             };
@@ -59,7 +59,7 @@ namespace RenderingDebugger.Scripts
 
             public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
             {
-                if (!_settings.enableOverdrawDetection || !_settings.overdrawOverlappedMaterial)
+                if (!_settings.EnableOverdrawDetection || !_settings.OverdrawOverlappedMaterial)
                 {
                     Debug.LogWarning("Overdraw detection is disabled or material is not set.");
                     return;
@@ -92,7 +92,7 @@ namespace RenderingDebugger.Scripts
 
             public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
             {
-                if (!_settings.enableOverdrawDetection || !_settings.overdrawOverlappedMaterial)
+                if (!_settings.EnableOverdrawDetection || !_settings.OverdrawOverlappedMaterial)
                 {
                     Debug.LogWarning("Overdraw detection is disabled or material is not set.");
                     return;
@@ -112,16 +112,16 @@ namespace RenderingDebugger.Scripts
 
                     // 3. 清零 overdraw 计数纹理
                     cmd.SetRenderTarget(cameraColorTarget, cameraDepthTarget);
-                    cmd.ClearRenderTarget(!_settings.enableDepthPriming, true, Color.clear);
+                    cmd.ClearRenderTarget(!_settings.EnableDepthPriming, true, Color.clear);
                 }
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
 
                 // 4.  生成 overdraw 计数
-                var sortingSettings = CreateSortingSettings(ref renderingData, _settings.enableDepthPriming);
+                var sortingSettings = CreateSortingSettings(ref renderingData, _settings.EnableDepthPriming);
                 var drawingSettings = CreateDrawingSettings(ref renderingData, sortingSettings);
                 var filteringSettings = CreateFilteringSettings(ref renderingData);
-                var renderStateBlock = CreateRenderStateBlock(ref renderingData, _settings.enableDepthPriming);
+                var renderStateBlock = CreateRenderStateBlock(ref renderingData, _settings.EnableDepthPriming);
                 context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref filteringSettings, ref renderStateBlock);
                 
                 context.ExecuteCommandBuffer(cmd);
@@ -152,7 +152,7 @@ namespace RenderingDebugger.Scripts
                 var drawingSettings = new DrawingSettings(shaderTagIds[0], sortingSettings)
                 {
                     // Use the overdraw count material to override the default shader
-                    overrideMaterial = _settings.overdrawOverlappedMaterial,
+                    overrideMaterial = _settings.OverdrawOverlappedMaterial,
                     overrideMaterialPassIndex = 0,
 
                     perObjectData = renderingData.perObjectData,

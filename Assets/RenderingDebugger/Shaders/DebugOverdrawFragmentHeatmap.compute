@@ -1,7 +1,10 @@
 #pragma kernel VisualizeOverdraw
 
-RWTexture2D<float4> _OverdrawVisualizationTexture;
-RWStructuredBuffer<uint> _OverdrawCounters;
+RWTexture2D<float> _OverdrawVisualizationTexture_R;
+RWTexture2D<float> _OverdrawVisualizationTexture_G;
+RWTexture2D<float> _OverdrawVisualizationTexture_B;
+RWTexture2D<float> _OverdrawVisualizationTexture_A;
+RWStructuredBuffer<int> _OverdrawCounters;
 
 uint _ComputeScreenWidth;
 uint _ComputeScreenHeight;
@@ -9,7 +12,7 @@ uint _MaxOverdrawThreshold;
 float4 _MinOverdrawColor;
 float4 _MaxOverdrawColor;
 
-float3 GetLinearHeatmapColor(uint overdrawCount, uint maxThreshold)
+float3 GetLinearHeatmapColor(int overdrawCount, uint maxThreshold)
 {
     if (overdrawCount <= 1)
         return _MinOverdrawColor.rgb;
@@ -29,8 +32,13 @@ void VisualizeOverdraw(uint3 id : SV_DispatchThreadID)
         return;
 
     uint index = id.y * _ComputeScreenWidth + id.x;
-    uint overdrawCount = _OverdrawCounters[index];
+    int overdrawCount = _OverdrawCounters[index];
     
     float3 heatmapColor = GetLinearHeatmapColor(overdrawCount, _MaxOverdrawThreshold);
-    _OverdrawVisualizationTexture[id.xy] = float4(heatmapColor, 1.0);
+    
+    // 分别写入四张单通道纹理
+    _OverdrawVisualizationTexture_R[id.xy] = heatmapColor.r;
+    _OverdrawVisualizationTexture_G[id.xy] = heatmapColor.g;
+    _OverdrawVisualizationTexture_B[id.xy] = heatmapColor.b;
+    _OverdrawVisualizationTexture_A[id.xy] = 1.0;
 }

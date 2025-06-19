@@ -9,32 +9,36 @@ namespace RenderingDebugger.Scripts
     [Tooltip("Render feature for debugging fragment overdraw information.")]
     public class DebugOverdrawFragmentDetection : ScriptableRendererFeature
     {
-        public OverdrawDetectionSettings settings = new();
+        public OverdrawDetectionSettings Settings = new();
         private DebugOverdrawFragmentDetectionPass _debugOverdrawFragmentDetectionPass;
         
-        [System.Serializable]
+        [Serializable]
         public class OverdrawDetectionSettings
         {
             [Header("Detection Settings")]
-            public bool enableOverdrawDetection = true;
-            public ComputeShader overdrawVisualizationCS;
+            public bool EnableOverdrawDetection = true;
+            public ComputeShader OverdrawVisualizationCs;
+            
+            [Header("Rendering Mode")]
+            [Tooltip("Use direct buffer read in shader (better performance) or texture-based approach (better compatibility)")]
+            public bool UseDirectBufferRead = true;
 
             [Header("Visualization Settings")]
-            public Material overdrawDisplayMaterial;
-            [Range(0f, 1f)] public float overdrawDisplayHeightRatio = 0.5f;
-            [Range(0f, 1f)] public float overdrawIntensity = 0.7f;
-            [Range(1, 50)] public uint maxOverdrawThreshold = 20;
+            public Material OverdrawDisplayMaterial;
+            [Range(0f, 1f)] public float OverdrawDisplayHeightRatio = 0.5f;
+            [Range(0f, 1f)] public float OverdrawIntensity = 0.7f;
+            [Range(1, 50)] public uint MaxOverdrawThreshold = 20;
 
             [Header("Range map Colors")]
-            [ColorUsage(false)] public Color minOverdrawColor = Color.gray;
-            [ColorUsage(false)] public Color maxOverdrawColor = Color.white;
+            [ColorUsage(false)] public Color MinOverdrawColor = Color.gray;
+            [ColorUsage(false)] public Color MaxOverdrawColor = Color.white;
         }
         
         #region Renderer Feature Implementation
         
         public override void Create()
         {
-            _debugOverdrawFragmentDetectionPass = new DebugOverdrawFragmentDetectionPass(settings)
+            _debugOverdrawFragmentDetectionPass = new DebugOverdrawFragmentDetectionPass(Settings)
             {
                 renderPassEvent = RenderPassEvent.AfterRenderingPostProcessing
             };
@@ -42,7 +46,7 @@ namespace RenderingDebugger.Scripts
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
-            if (settings.enableOverdrawDetection && settings.overdrawVisualizationCS != null && settings.overdrawDisplayMaterial != null)
+            if (Settings.EnableOverdrawDetection && Settings.OverdrawVisualizationCs != null && Settings.OverdrawDisplayMaterial != null)
             {
                 renderer.EnqueuePass(_debugOverdrawFragmentDetectionPass);
             }
@@ -63,7 +67,7 @@ namespace RenderingDebugger.Scripts
             private readonly OverdrawDetectionSettings _settings;
             private RTHandle _tempColorTarget;
             private const string ProfilerTag = "Fragment Overdraw Detection";
-            private bool _isInitialized = false;
+            private bool _isInitialized;
 
             public DebugOverdrawFragmentDetectionPass(OverdrawDetectionSettings settings)
             {
@@ -82,11 +86,11 @@ namespace RenderingDebugger.Scripts
                     DebugOverdrawFragmentAccumulator.Instance.EnableOverdrawDetection(
                         currentWidth,
                         currentHeight,
-                        _settings.overdrawVisualizationCS
+                        _settings.OverdrawVisualizationCs
                     );
-                    DebugOverdrawFragmentAccumulator.Instance.SetupUavBinding(cmd);
                     _isInitialized = true;
                 }
+                DebugOverdrawFragmentAccumulator.Instance.SetupUavBinding(cmd);
                 DebugOverdrawFragmentAccumulator.Instance.ClearData(cmd);
 
                 // 创建临时颜色目标用于保存原始图像
@@ -105,29 +109,68 @@ namespace RenderingDebugger.Scripts
                 {
                     // 1. 保存当前相机颜色目标
                     cmd.Blit(cameraColorTarget.rt, _tempColorTarget);
+                    // 2. 启用 overdraw 检测
+                    
 
-                    // 2. 生成 overdraw 可视化
-                    DebugOverdrawFragmentAccumulator.Instance.GenerateVisualization(cmd, _settings.maxOverdrawThreshold, _settings.minOverdrawColor, _settings.maxOverdrawColor);
-
-                    // 3. 应用 overdraw 可视化到相机目标
-                    var overdrawTexture = DebugOverdrawFragmentAccumulator.Instance.overdrawVisualizationTexture;
-                    if (overdrawTexture != null)
+                    var material = _settings.OverdrawDisplayMaterial;
+                    if (_settings.UseDirectBufferRead)
                     {
-                        // 设置材质参数
-                        var material = _settings.overdrawDisplayMaterial;
-                        material.SetTexture(DebugConstant.OverdrawBlendOverdrawTextureId, overdrawTexture);
-                        material.SetTexture(DebugConstant.OverdrawBlendOriginalTextureId, _tempColorTarget);
-                        material.SetFloat(DebugConstant.OverdrawBlendOverdrawIntensityId, _settings.overdrawIntensity);
-                        material.SetFloat(DebugConstant.OverdrawBlendDisplayHeightRatioId,  _settings.overdrawDisplayHeightRatio);
-
-                        // 绘制全屏 quad
-                        cmd.SetRenderTarget(cameraColorTarget);
-                        cmd.DrawProcedural(Matrix4x4.identity, material, 0, MeshTopology.Triangles, 3, 1);
+                        // 2a. 直接读取 Buffer 模式
+                        var overdrawCountBuffer = DebugOverdrawFragmentAccumulator.Instance.OverdrawCountBuffer;
+                        
+                        if (overdrawCountBuffer != null && overdrawCountBuffer.IsValid())
+                        {
+                            // 启用直接读取 Buffer 关键字
+                            // DebugOverdrawFragmentAccumulator.Instance.SetupUavBinding(cmd);
+                            material.EnableKeyword(DebugConstant.OverdrawDirectBufferReadKeyword);
+                            material.SetBuffer(DebugConstant.OverdrawBlendDirectBufferReadId, overdrawCountBuffer);
+                            material.SetInt(DebugConstant.OverdrawBlendScreenWidthId, DebugOverdrawFragmentAccumulator.Instance.ScreenWidth);
+                            material.SetInt(DebugConstant.OverdrawBlendScreenHeightId, DebugOverdrawFragmentAccumulator.Instance.ScreenHeight);
+                            material.SetInt(DebugConstant.OverdrawBlendThresholdId, (int)_settings.MaxOverdrawThreshold);
+                            material.SetVector(DebugConstant.OverdrawBlendMinColorId, _settings.MinOverdrawColor);
+                            material.SetVector(DebugConstant.OverdrawBlendMaxColorId, _settings.MaxOverdrawColor);
+                        }
+                        else
+                        {
+                            Debug.LogWarning("Overdraw count buffer is null or invalid!");
+                        }
                     }
                     else
                     {
-                        Debug.LogWarning("Overdraw visualization texture is null!");
+                        // 2b. 纹理模式
+                        material.DisableKeyword(DebugConstant.OverdrawDirectBufferReadKeyword);
+                        
+                        // 生成 overdraw 可视化纹理
+                        DebugOverdrawFragmentAccumulator.Instance.GenerateVisualization(cmd, _settings.MaxOverdrawThreshold, _settings.MinOverdrawColor, _settings.MaxOverdrawColor);
+
+                        // 应用 overdraw 可视化到相机目标
+                        var overdrawTextureR = DebugOverdrawFragmentAccumulator.Instance.OverdrawVisualizationTextureR;
+                        var overdrawTextureG = DebugOverdrawFragmentAccumulator.Instance.OverdrawVisualizationTextureG;
+                        var overdrawTextureB = DebugOverdrawFragmentAccumulator.Instance.OverdrawVisualizationTextureB;
+                        var overdrawTextureA = DebugOverdrawFragmentAccumulator.Instance.OverdrawVisualizationTextureA;
+
+                        if (overdrawTextureR != null && overdrawTextureG != null && overdrawTextureB != null && overdrawTextureA != null)
+                        {
+                            // 设置材质参数
+                            material.SetTexture(DebugConstant.OverdrawBlendTextureRId, overdrawTextureR);
+                            material.SetTexture(DebugConstant.OverdrawBlendTextureGId, overdrawTextureG);
+                            material.SetTexture(DebugConstant.OverdrawBlendTextureBId, overdrawTextureB);
+                            material.SetTexture(DebugConstant.OverdrawBlendTextureAId, overdrawTextureA);
+                        }
+                        else
+                        {
+                            Debug.LogWarning("Overdraw visualization textures are null!");
+                        }
                     }
+
+                    // 3. 设置通用材质参数并绘制
+                    material.SetTexture(DebugConstant.OverdrawBlendOriginalTextureId, _tempColorTarget);
+                    material.SetFloat(DebugConstant.OverdrawBlendOverdrawIntensityId, _settings.OverdrawIntensity);
+                    material.SetFloat(DebugConstant.OverdrawBlendDisplayHeightRatioId, _settings.OverdrawDisplayHeightRatio);
+
+                    // 绘制全屏 quad
+                    cmd.SetRenderTarget(cameraColorTarget);
+                    cmd.DrawProcedural(Matrix4x4.identity, material, 0, MeshTopology.Triangles, 3, 1);
                 }
 
                 context.ExecuteCommandBuffer(cmd);
@@ -164,12 +207,17 @@ namespace RenderingDebugger.Scripts
                 return _instance;
             }
         }
-
-        private ComputeBuffer _overdrawCountBuffer;
-        private int _screenWidth, _screenHeight;
         private ComputeShader _overdrawVisualizationCs;
-        private bool isOverdrawEnabled { get; set; } = false;
-        public RenderTexture overdrawVisualizationTexture { get; private set; }
+        private bool _isOverdrawEnabled;
+
+        public int ScreenWidth { get; private set; }
+        public int ScreenHeight { get; private set; }
+        public ComputeBuffer OverdrawCountBuffer { get; private set; }
+        public RenderTexture OverdrawVisualizationTextureR { get; private set; }
+        public RenderTexture OverdrawVisualizationTextureG { get; private set; }
+        public RenderTexture OverdrawVisualizationTextureB { get; private set; }
+        public RenderTexture OverdrawVisualizationTextureA { get; private set; }
+
 
 
         #region Public Interface
@@ -182,7 +230,7 @@ namespace RenderingDebugger.Scripts
         /// <returns>True if resolution changed, False otherwise</returns>
         public bool CheckResolution(int screenWidth, int screenHeight)
         {
-            return !isOverdrawEnabled || _screenWidth != screenWidth || _screenHeight != screenHeight;
+            return !_isOverdrawEnabled || ScreenWidth != screenWidth || ScreenHeight != screenHeight;
         }
 
         /// <summary>
@@ -190,11 +238,11 @@ namespace RenderingDebugger.Scripts
         /// </summary>
         /// <param name="screenWidth">Width of current camera view</param>
         /// <param name="screenHeight">Height of current camera view</param>
-        /// <param name="visualizationCS">Compute Shader for visualization calculation</param>
-        public void EnableOverdrawDetection(int screenWidth, int screenHeight, ComputeShader visualizationCS)
+        /// <param name="visualizationCs">Compute Shader for visualization calculation</param>
+        public void EnableOverdrawDetection(int screenWidth, int screenHeight, ComputeShader visualizationCs)
         {
-            isOverdrawEnabled = true;
-            _overdrawVisualizationCs = visualizationCS;
+            _isOverdrawEnabled = true;
+            _overdrawVisualizationCs = visualizationCs;
 
             // 创建或重新分配计数缓冲区
             UpdateComputeBufferAndVariables(screenWidth, screenHeight);
@@ -207,8 +255,8 @@ namespace RenderingDebugger.Scripts
         /// <param name="cmd">Command buffer currently used</param>
         public void SetupUavBinding(CommandBuffer cmd)
         {
-            if (_overdrawCountBuffer == null) return;
-            cmd.SetRandomWriteTarget(1, _overdrawCountBuffer);
+            if (OverdrawCountBuffer == null) return;
+            cmd.SetRandomWriteTarget(1, OverdrawCountBuffer);
             // Debug.Log("Set UAV binding for overdraw counter buffer");
         }
 
@@ -218,11 +266,11 @@ namespace RenderingDebugger.Scripts
         /// <param name="cmd">Command buffer currently used</param>
         public void ClearData(CommandBuffer cmd)
         {
-            if (_overdrawCountBuffer == null) return;
+            if (OverdrawCountBuffer == null) return;
 
             // 清零计数器 - 在渲染开始前调用
-            uint[] zeros = new uint[_overdrawCountBuffer.count];
-            _overdrawCountBuffer.SetData(zeros);
+            int[] zeros = new int[OverdrawCountBuffer.count];
+            OverdrawCountBuffer.SetData(zeros);
 
             // Debug.Log($"Cleared overdraw counters: {_overdrawCountBuffer.count} elements");
         }
@@ -237,7 +285,7 @@ namespace RenderingDebugger.Scripts
         public void GenerateVisualization(CommandBuffer cmd, uint maxOverdrawThreshold = 20, Color minColor = default,
             Color maxColor = default)
         {
-            if (!isOverdrawEnabled || _overdrawVisualizationCs == null)
+            if (!_isOverdrawEnabled || _overdrawVisualizationCs == null)
                 return;
 
             // 如果没有提供颜色，使用默认值
@@ -250,12 +298,18 @@ namespace RenderingDebugger.Scripts
             int kernelIndex = _overdrawVisualizationCs.FindKernel("VisualizeOverdraw");
 
             cmd.SetComputeBufferParam(_overdrawVisualizationCs, kernelIndex, DebugConstant.OverdrawCountBufferId,
-                _overdrawCountBuffer);
+                OverdrawCountBuffer);
             cmd.SetComputeTextureParam(_overdrawVisualizationCs, kernelIndex,
-                DebugConstant.OverdrawVisualizationTextureId, overdrawVisualizationTexture);
-            cmd.SetComputeIntParam(_overdrawVisualizationCs, DebugConstant.OverdrawComputeScreenWidthId, _screenWidth);
+                DebugConstant.OverdrawVisualizationTextureRId, OverdrawVisualizationTextureR);
+            cmd.SetComputeTextureParam(_overdrawVisualizationCs, kernelIndex,
+                DebugConstant.OverdrawVisualizationTextureGId, OverdrawVisualizationTextureG);
+            cmd.SetComputeTextureParam(_overdrawVisualizationCs, kernelIndex,
+                DebugConstant.OverdrawVisualizationTextureBId, OverdrawVisualizationTextureB);
+            cmd.SetComputeTextureParam(_overdrawVisualizationCs, kernelIndex,
+                DebugConstant.OverdrawVisualizationTextureAId, OverdrawVisualizationTextureA);
+            cmd.SetComputeIntParam(_overdrawVisualizationCs, DebugConstant.OverdrawComputeScreenWidthId, ScreenWidth);
             cmd.SetComputeIntParam(_overdrawVisualizationCs, DebugConstant.OverdrawComputeScreenHeightId,
-                _screenHeight);
+                ScreenHeight);
             cmd.SetComputeIntParam(_overdrawVisualizationCs, DebugConstant.OverdrawComputeThresholdId,
                 (int)maxOverdrawThreshold);
             cmd.SetComputeVectorParam(_overdrawVisualizationCs, DebugConstant.OverdrawComputeMinColorId,
@@ -263,8 +317,8 @@ namespace RenderingDebugger.Scripts
             cmd.SetComputeVectorParam(_overdrawVisualizationCs, DebugConstant.OverdrawComputeMaxColorId,
                 new Vector4(maxColor.r, maxColor.g, maxColor.b, maxColor.a));
 
-            int threadGroupsX = Mathf.CeilToInt(_screenWidth / 8.0f);
-            int threadGroupsY = Mathf.CeilToInt(_screenHeight / 8.0f);
+            int threadGroupsX = Mathf.CeilToInt(ScreenWidth / 8.0f);
+            int threadGroupsY = Mathf.CeilToInt(ScreenHeight / 8.0f);
             cmd.DispatchCompute(_overdrawVisualizationCs, kernelIndex, threadGroupsX, threadGroupsY, 1);
 
             // Debug.Log($"Dispatched overdraw visualization: {threadGroupsX}x{threadGroupsY} thread groups");
@@ -272,7 +326,7 @@ namespace RenderingDebugger.Scripts
 
         public void DisableOverdrawDetection()
         {
-            isOverdrawEnabled = false;
+            _isOverdrawEnabled = false;
             Cleanup();
             Shader.SetGlobalInt(DebugConstant.OverdrawEnableId, 0);
             Shader.DisableKeyword(DebugConstant.OverdrawEnableKeyword);
@@ -285,8 +339,8 @@ namespace RenderingDebugger.Scripts
 
         private void UpdateComputeBufferAndVariables(int screenWidth, int screenHeight)
         {
-            _screenWidth = screenWidth;
-            _screenHeight = screenHeight;
+            ScreenWidth = screenWidth;
+            ScreenHeight = screenHeight;
             RecreateBuffersAndTextures();
             UpdateShaderGlobals();
         }
@@ -297,38 +351,82 @@ namespace RenderingDebugger.Scripts
             Cleanup();
 
             // 创建新的计数缓冲区
-            _overdrawCountBuffer = new ComputeBuffer(
-                _screenWidth * _screenHeight,
-                sizeof(uint),
+            OverdrawCountBuffer = new ComputeBuffer(
+                ScreenWidth * ScreenHeight,
+                sizeof(int),
                 ComputeBufferType.Default,
                 ComputeBufferMode.Immutable);
 
-            // 创建新的可视化纹理
-            overdrawVisualizationTexture = new RenderTexture(_screenWidth, _screenHeight, 0, RenderTextureFormat.ARGB32)
+            // 创建四张单通道可视化纹理（纹理模式需要）
+            CreateVisualizationTextures();
+        }
+        
+        private void CreateVisualizationTextures()
+        {
+            OverdrawVisualizationTextureR = new RenderTexture(ScreenWidth, ScreenHeight, 0, RenderTextureFormat.RFloat)
             {
                 enableRandomWrite = true,
-                name = "OverdrawVisualization"
+                name = "OverdrawVisualization_R"
             };
-            overdrawVisualizationTexture.Create();
+            OverdrawVisualizationTextureR.Create();
+
+            OverdrawVisualizationTextureG = new RenderTexture(ScreenWidth, ScreenHeight, 0, RenderTextureFormat.RFloat)
+            {
+                enableRandomWrite = true,
+                name = "OverdrawVisualization_G"
+            };
+            OverdrawVisualizationTextureG.Create();
+
+            OverdrawVisualizationTextureB = new RenderTexture(ScreenWidth, ScreenHeight, 0, RenderTextureFormat.RFloat)
+            {
+                enableRandomWrite = true,
+                name = "OverdrawVisualization_B"
+            };
+            OverdrawVisualizationTextureB.Create();
+
+            OverdrawVisualizationTextureA = new RenderTexture(ScreenWidth, ScreenHeight, 0, RenderTextureFormat.RFloat)
+            {
+                enableRandomWrite = true,
+                name = "OverdrawVisualization_A"
+            };
+            OverdrawVisualizationTextureA.Create();
         }
 
         private void UpdateShaderGlobals()
         {
-            Shader.SetGlobalInt(DebugConstant.OverdrawVisualizationScreenWidthId, _screenWidth);
-            Shader.SetGlobalInt(DebugConstant.OverdrawVisualizationScreenHeightId, _screenHeight);
+            Shader.SetGlobalInt(DebugConstant.OverdrawVisualizationScreenWidthId, ScreenWidth);
+            Shader.SetGlobalInt(DebugConstant.OverdrawVisualizationScreenHeightId, ScreenHeight);
             Shader.SetGlobalInt(DebugConstant.OverdrawEnableId, 1);
             Shader.EnableKeyword(DebugConstant.OverdrawEnableKeyword);
         }
 
         private void Cleanup()
         {
-            _overdrawCountBuffer?.Release();
-            _overdrawCountBuffer = null;
+            OverdrawCountBuffer?.Release();
+            OverdrawCountBuffer = null;
 
-            if (overdrawVisualizationTexture)
+            if (OverdrawVisualizationTextureR)
             {
-                overdrawVisualizationTexture.Release();
-                overdrawVisualizationTexture = null;
+                OverdrawVisualizationTextureR.Release();
+                OverdrawVisualizationTextureR = null;
+            }
+
+            if (OverdrawVisualizationTextureG)
+            {
+                OverdrawVisualizationTextureG.Release();
+                OverdrawVisualizationTextureG = null;
+            }
+
+            if (OverdrawVisualizationTextureB)
+            {
+                OverdrawVisualizationTextureB.Release();
+                OverdrawVisualizationTextureB = null;
+            }
+
+            if (OverdrawVisualizationTextureA)
+            {
+                OverdrawVisualizationTextureA.Release();
+                OverdrawVisualizationTextureA = null;
             }
 
             Debug.Log("Overdraw accumulator cleaned up");
@@ -347,20 +445,20 @@ namespace RenderingDebugger.Scripts
 
         public void DebugBufferContents()
         {
-            if (_overdrawCountBuffer == null)
+            if (OverdrawCountBuffer == null)
             {
                 Debug.Log("Overdraw buffer is null!");
                 return;
             }
 
             // 读取缓冲区数据
-            uint[] data = new uint[_overdrawCountBuffer.count];
-            _overdrawCountBuffer.GetData(data);
+            int[] data = new int[OverdrawCountBuffer.count];
+            OverdrawCountBuffer.GetData(data);
 
             // 统计非零数据
             int nonZeroCount = 0;
-            uint maxValue = 0;
-            uint totalSum = 0;
+            int maxValue = 0;
+            int totalSum = 0;
 
             foreach (var t in data)
             {
@@ -380,8 +478,8 @@ namespace RenderingDebugger.Scripts
             for (int i = 0; i < data.Length && count < 10; i++)
             {
                 if (data[i] <= 0) continue;
-                int x = i % _screenWidth;
-                int y = i / _screenWidth;
+                int x = i % ScreenWidth;
+                int y = i / ScreenWidth;
                 Debug.Log($"  Pixel ({x}, {y}): {data[i]}");
                 count++;
             }
@@ -390,6 +488,3 @@ namespace RenderingDebugger.Scripts
         #endregion
     }
 }
-
-
-
