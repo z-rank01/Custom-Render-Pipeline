@@ -9,20 +9,19 @@ namespace RenderingDebugger.Scripts
     [Tooltip("Render Feature for debugging depth information.")]
     public class DebugDepth : ScriptableRendererFeature
     {
-        public DebugDepthSettings settings = new();
-        [SerializeField] private Material debugDepthMaterial;
+        public DebugDepthSettings Settings = new();
         private DebugDepthPass _debugDepthOutputPass;
         
         [System.Serializable]
         public class DebugDepthSettings
         {
-            public bool enableDebugOutput;
-            [Range(0.1f, 1f)] public float displayHeightRatio = 0.5f;
-            public int depthDetectionThreshold = 100;
+            public bool EnableDebugOutput;
+            public Material DebugDepthMaterial;
+            [Range(0.1f, 1f)] public float DisplayHeightRatio = 0.5f;
+            public int DepthDetectionThreshold = 100;
         }
         private class DebugDepthPass : ScriptableRenderPass
         {
-            private readonly Material _debugSplitMaterial;
             private readonly DebugDepthSettings _settings;
             private const string ProfilerTag = "Debug Depth";
             private readonly ProfilingSampler _profilingSampler = new(ProfilerTag);
@@ -30,15 +29,14 @@ namespace RenderingDebugger.Scripts
             // 临时渲染目标
             private RTHandle _tempRenderTarget;
 
-            public DebugDepthPass(DebugDepthSettings settings, Material debugSplitMaterial)
+            public DebugDepthPass(DebugDepthSettings settings)
             {
-                _debugSplitMaterial = debugSplitMaterial;
                 _settings = settings;
             }
 
             public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
             {
-                if (!_settings.enableDebugOutput) return;
+                if (!_settings.EnableDebugOutput) return;
                 var cameraTargetDescriptor = renderingData.cameraData.cameraTargetDescriptor;
                 cameraTargetDescriptor.depthBufferBits = 0;
                 RenderingUtils.ReAllocateIfNeeded(ref _tempRenderTarget, cameraTargetDescriptor,
@@ -49,7 +47,7 @@ namespace RenderingDebugger.Scripts
 
             public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
             {
-                if (!_settings.enableDebugOutput) return;
+                if (!_settings.EnableDebugOutput) return;
                 
                 var cameraData = renderingData.cameraData;
                 var colorTarget = cameraData.renderer.cameraColorTargetHandle;
@@ -60,10 +58,10 @@ namespace RenderingDebugger.Scripts
                     cmd.Blit(colorTarget.rt, _tempRenderTarget);
 
                     cmd.SetGlobalTexture(DebugConstant.DebugColorInputId, _tempRenderTarget);
-                    cmd.SetGlobalFloat(DebugConstant.DebugDisplayHeightRatioId, _settings.displayHeightRatio);
-                    cmd.SetGlobalInt(DebugConstant.DebugSaturationThresholdId, _settings.depthDetectionThreshold);
+                    cmd.SetGlobalFloat(DebugConstant.DebugDisplayHeightRatioId, _settings.DisplayHeightRatio);
+                    cmd.SetGlobalInt(DebugConstant.DebugSaturationThresholdId, _settings.DepthDetectionThreshold);
                     cmd.SetRenderTarget(colorTarget);
-                    cmd.DrawProcedural(Matrix4x4.identity, _debugSplitMaterial, 0, MeshTopology.Triangles, 3, 1);
+                    cmd.DrawProcedural(Matrix4x4.identity, _settings.DebugDepthMaterial, 0, MeshTopology.Triangles, 3, 1);
                 }
                 context.ExecuteCommandBuffer(cmd);
                 CommandBufferPool.Release(cmd);
@@ -81,10 +79,7 @@ namespace RenderingDebugger.Scripts
 
         public override void Create()
         {
-            _debugDepthOutputPass = new DebugDepthPass(
-                settings,
-                debugDepthMaterial
-            )
+            _debugDepthOutputPass = new DebugDepthPass(Settings)
             {
                 renderPassEvent = RenderPassEvent.AfterRenderingPostProcessing
             };
@@ -92,10 +87,7 @@ namespace RenderingDebugger.Scripts
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
-            if (debugDepthMaterial != null)
-            {
-                renderer.EnqueuePass(_debugDepthOutputPass);
-            }
+            renderer.EnqueuePass(_debugDepthOutputPass);
         }
         
         protected override void Dispose(bool disposing)

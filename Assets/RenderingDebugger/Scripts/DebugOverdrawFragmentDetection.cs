@@ -9,36 +9,36 @@ namespace RenderingDebugger.Scripts
     [Tooltip("Render feature for debugging fragment overdraw information.")]
     public class DebugOverdrawFragmentDetection : ScriptableRendererFeature
     {
-        public OverdrawDetectionSettings settings = new();
+        public OverdrawDetectionSettings Settings = new();
         private DebugOverdrawFragmentDetectionPass _debugOverdrawFragmentDetectionPass;
         
-        [System.Serializable]
+        [Serializable]
         public class OverdrawDetectionSettings
         {
             [Header("Detection Settings")]
-            public bool enableOverdrawDetection = true;
-            public ComputeShader overdrawVisualizationCS;
+            public bool EnableOverdrawDetection = true;
+            public ComputeShader OverdrawVisualizationCs;
             
             [Header("Rendering Mode")]
             [Tooltip("Use direct buffer read in shader (better performance) or texture-based approach (better compatibility)")]
-            public bool useDirectBufferRead = true;
+            public bool UseDirectBufferRead = true;
 
             [Header("Visualization Settings")]
-            public Material overdrawDisplayMaterial;
-            [Range(0f, 1f)] public float overdrawDisplayHeightRatio = 0.5f;
-            [Range(0f, 1f)] public float overdrawIntensity = 0.7f;
-            [Range(1, 50)] public uint maxOverdrawThreshold = 20;
+            public Material OverdrawDisplayMaterial;
+            [Range(0f, 1f)] public float OverdrawDisplayHeightRatio = 0.5f;
+            [Range(0f, 1f)] public float OverdrawIntensity = 0.7f;
+            [Range(1, 50)] public uint MaxOverdrawThreshold = 20;
 
             [Header("Range map Colors")]
-            [ColorUsage(false)] public Color minOverdrawColor = Color.gray;
-            [ColorUsage(false)] public Color maxOverdrawColor = Color.white;
+            [ColorUsage(false)] public Color MinOverdrawColor = Color.gray;
+            [ColorUsage(false)] public Color MaxOverdrawColor = Color.white;
         }
         
         #region Renderer Feature Implementation
         
         public override void Create()
         {
-            _debugOverdrawFragmentDetectionPass = new DebugOverdrawFragmentDetectionPass(settings)
+            _debugOverdrawFragmentDetectionPass = new DebugOverdrawFragmentDetectionPass(Settings)
             {
                 renderPassEvent = RenderPassEvent.AfterRenderingPostProcessing
             };
@@ -46,7 +46,7 @@ namespace RenderingDebugger.Scripts
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
-            if (settings.enableOverdrawDetection && settings.overdrawVisualizationCS != null && settings.overdrawDisplayMaterial != null)
+            if (Settings.EnableOverdrawDetection && Settings.OverdrawVisualizationCs != null && Settings.OverdrawDisplayMaterial != null)
             {
                 renderer.EnqueuePass(_debugOverdrawFragmentDetectionPass);
             }
@@ -67,7 +67,7 @@ namespace RenderingDebugger.Scripts
             private readonly OverdrawDetectionSettings _settings;
             private RTHandle _tempColorTarget;
             private const string ProfilerTag = "Fragment Overdraw Detection";
-            private bool _isInitialized = false;
+            private bool _isInitialized;
 
             public DebugOverdrawFragmentDetectionPass(OverdrawDetectionSettings settings)
             {
@@ -86,7 +86,7 @@ namespace RenderingDebugger.Scripts
                     DebugOverdrawFragmentAccumulator.Instance.EnableOverdrawDetection(
                         currentWidth,
                         currentHeight,
-                        _settings.overdrawVisualizationCS
+                        _settings.OverdrawVisualizationCs
                     );
                     _isInitialized = true;
                 }
@@ -112,8 +112,8 @@ namespace RenderingDebugger.Scripts
                     // 2. 启用 overdraw 检测
                     
 
-                    var material = _settings.overdrawDisplayMaterial;
-                    if (_settings.useDirectBufferRead)
+                    var material = _settings.OverdrawDisplayMaterial;
+                    if (_settings.UseDirectBufferRead)
                     {
                         // 2a. 直接读取 Buffer 模式
                         var overdrawCountBuffer = DebugOverdrawFragmentAccumulator.Instance.OverdrawCountBuffer;
@@ -126,9 +126,9 @@ namespace RenderingDebugger.Scripts
                             material.SetBuffer(DebugConstant.OverdrawBlendDirectBufferReadId, overdrawCountBuffer);
                             material.SetInt(DebugConstant.OverdrawBlendScreenWidthId, DebugOverdrawFragmentAccumulator.Instance.ScreenWidth);
                             material.SetInt(DebugConstant.OverdrawBlendScreenHeightId, DebugOverdrawFragmentAccumulator.Instance.ScreenHeight);
-                            material.SetInt(DebugConstant.OverdrawBlendThresholdId, (int)_settings.maxOverdrawThreshold);
-                            material.SetVector(DebugConstant.OverdrawBlendMinColorId, _settings.minOverdrawColor);
-                            material.SetVector(DebugConstant.OverdrawBlendMaxColorId, _settings.maxOverdrawColor);
+                            material.SetInt(DebugConstant.OverdrawBlendThresholdId, (int)_settings.MaxOverdrawThreshold);
+                            material.SetVector(DebugConstant.OverdrawBlendMinColorId, _settings.MinOverdrawColor);
+                            material.SetVector(DebugConstant.OverdrawBlendMaxColorId, _settings.MaxOverdrawColor);
                         }
                         else
                         {
@@ -141,7 +141,7 @@ namespace RenderingDebugger.Scripts
                         material.DisableKeyword(DebugConstant.OverdrawDirectBufferReadKeyword);
                         
                         // 生成 overdraw 可视化纹理
-                        DebugOverdrawFragmentAccumulator.Instance.GenerateVisualization(cmd, _settings.maxOverdrawThreshold, _settings.minOverdrawColor, _settings.maxOverdrawColor);
+                        DebugOverdrawFragmentAccumulator.Instance.GenerateVisualization(cmd, _settings.MaxOverdrawThreshold, _settings.MinOverdrawColor, _settings.MaxOverdrawColor);
 
                         // 应用 overdraw 可视化到相机目标
                         var overdrawTextureR = DebugOverdrawFragmentAccumulator.Instance.OverdrawVisualizationTextureR;
@@ -165,8 +165,8 @@ namespace RenderingDebugger.Scripts
 
                     // 3. 设置通用材质参数并绘制
                     material.SetTexture(DebugConstant.OverdrawBlendOriginalTextureId, _tempColorTarget);
-                    material.SetFloat(DebugConstant.OverdrawBlendOverdrawIntensityId, _settings.overdrawIntensity);
-                    material.SetFloat(DebugConstant.OverdrawBlendDisplayHeightRatioId, _settings.overdrawDisplayHeightRatio);
+                    material.SetFloat(DebugConstant.OverdrawBlendOverdrawIntensityId, _settings.OverdrawIntensity);
+                    material.SetFloat(DebugConstant.OverdrawBlendDisplayHeightRatioId, _settings.OverdrawDisplayHeightRatio);
 
                     // 绘制全屏 quad
                     cmd.SetRenderTarget(cameraColorTarget);
@@ -208,7 +208,7 @@ namespace RenderingDebugger.Scripts
             }
         }
         private ComputeShader _overdrawVisualizationCs;
-        private bool _isOverdrawEnabled = false;
+        private bool _isOverdrawEnabled;
 
         public int ScreenWidth { get; private set; }
         public int ScreenHeight { get; private set; }
@@ -238,11 +238,11 @@ namespace RenderingDebugger.Scripts
         /// </summary>
         /// <param name="screenWidth">Width of current camera view</param>
         /// <param name="screenHeight">Height of current camera view</param>
-        /// <param name="visualizationCS">Compute Shader for visualization calculation</param>
-        public void EnableOverdrawDetection(int screenWidth, int screenHeight, ComputeShader visualizationCS)
+        /// <param name="visualizationCs">Compute Shader for visualization calculation</param>
+        public void EnableOverdrawDetection(int screenWidth, int screenHeight, ComputeShader visualizationCs)
         {
             _isOverdrawEnabled = true;
-            _overdrawVisualizationCs = visualizationCS;
+            _overdrawVisualizationCs = visualizationCs;
 
             // 创建或重新分配计数缓冲区
             UpdateComputeBufferAndVariables(screenWidth, screenHeight);
