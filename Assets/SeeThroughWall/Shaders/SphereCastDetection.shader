@@ -1,58 +1,77 @@
-Shader "Unlit/SphereCastDetection"
+Shader "SeeThroughWall/SphereCastDetection"
 {
     Properties
     {
-        _MainTex ("Texture", 2D) = "white" {}
+        _DitherTex ("Dither Texture", 2D) = "white" {}
+        _TargetWorldPosition ("Target World Position", Vector) = (0, 0, 0, 0)
+        _DitherScale ("Dither Scale", Float) = 1.0
+        _DistanceThreshold ("Distance Threshold", Float) = 10
+        _DitherCircleMaxRadius ("Dither Circle Max Radius", Float) = 10
     }
     SubShader
     {
-        Tags { "RenderType"="Opaque" }
-        LOD 100
-
+        Tags
+        {
+            "RenderType"="Opaque"
+        }
         Pass
         {
-            CGPROGRAM
+            HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
-            // make fog work
-            #pragma multi_compile_fog
 
-            #include "UnityCG.cginc"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/GlobalSamplers.hlsl"
 
             struct appdata
             {
-                float4 vertex : POSITION;
-                float2 uv : TEXCOORD0;
+                float4 positionOS : POSITION;
             };
 
             struct v2f
             {
-                float2 uv : TEXCOORD0;
-                UNITY_FOG_COORDS(1)
-                float4 vertex : SV_POSITION;
+                half4 positionCS : SV_POSITION;
+                half4 positionWS : TEXCOORD0;
+                half4 positionVS : TEXCOORD1;
             };
 
-            sampler2D _MainTex;
-            float4 _MainTex_ST;
+            CBUFFER_START(UnityPerMaterial)
+                half4 _TargetWorldPosition;
+                half _DitherScale;
+                half _DistanceThreshold;
+                half _DitherCircleMaxRadius;
+            CBUFFER_END
 
-            v2f vert (appdata v)
+            TEXTURE2D(_DitherTex);
+            SAMPLER(sampler_DitherTex);
+
+            half DistanceRelativeRadius(half4 targetWorldPosition, half4 objectWorldPosition, half maxRadius, half maxTargetDistance)
+            {
+                half target2CameraDepth = abs(TransformWorldToView(targetWorldPosition).z);
+                half object2CenterLineDistance = length(TransformWorldToView(objectWorldPosition).xy);
+                half radius = lerp(maxRadius, 0, target2CameraDepth / maxTargetDistance);
+                return lerp(0, 1.1, object2CenterLineDistance / radius);
+            }
+
+            v2f vert(appdata v)
             {
                 v2f o;
-                o.vertex = UnityObjectToClipPos(v.vertex);
-                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
-                UNITY_TRANSFER_FOG(o,o.vertex);
+                VertexPositionInputs vertexInputs = GetVertexPositionInputs(v.positionOS);
+                o.positionCS = vertexInputs.positionCS;
+                o.positionWS.xyz = vertexInputs.positionWS;
+                o.positionVS.xyz = vertexInputs.positionVS;
                 return o;
             }
 
-            fixed4 frag (v2f i) : SV_Target
+            half4 frag(v2f i) : SV_Target
             {
-                // sample the texture
-                fixed4 col = tex2D(_MainTex, i.uv);
-                // apply fog
-                UNITY_APPLY_FOG(i.fogCoord, col);
-                return col;
+                half ditherThreshold = DistanceRelativeRadius(_TargetWorldPosition, i.positionWS, _DitherCircleMaxRadius, _DistanceThreshold);
+                half2 uv = i.positionCS.xy * _DitherScale;
+                half d = SAMPLE_TEXTURE2D(_DitherTex, sampler_PointRepeat, uv).a;
+                clip(ditherThreshold - d);
+                return half4(1, 1, 1, 1);
             }
-            ENDCG
+            ENDHLSL
         }
     }
 }
