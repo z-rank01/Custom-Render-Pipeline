@@ -110,7 +110,7 @@ Material:
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
     - _DistanceThreshold: 10
-    - _DitherCircleMaxRadius: 10
+    - _DitherCircleMaxRadius: 3
     - _DitherScale: 0.1
     - _DstBlend: 0
     - _DstBlendAlpha: 0
