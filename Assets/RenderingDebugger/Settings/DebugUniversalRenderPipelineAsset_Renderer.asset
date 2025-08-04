@@ -119,9 +119,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dd17dd89f74a7814893984d281f70efd, type: 3}
   m_Name: DebugOverdrawOverlapped
   m_EditorClassIdentifier: 
-  m_Active: 0
+  m_Active: 1
   Settings:
     EnableOverdrawDetection: 1
-    EnableDepthPriming: 1
+    EnableDepthPriming: 0
     OverdrawOverlappedMaterial: {fileID: 2100000, guid: 84f207800b8ef774b9ff3f3545bf3bdd,
       type: 2}
