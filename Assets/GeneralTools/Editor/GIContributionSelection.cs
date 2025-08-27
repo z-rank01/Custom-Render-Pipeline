@@ -358,6 +358,58 @@ public class GIContributionManager : IDisposable
         RebuildGroupedData();
         OnDataChanged?.Invoke();
     }
+
+    /// <summary>
+    /// 替换指定材质为新材质
+    /// </summary>
+    public int ReplaceMaterial(Material oldMaterial, Material newMaterial)
+    {
+        if (oldMaterial == null || newMaterial == null)
+        {
+            Debug.LogWarning("替换材质失败：旧材质或新材质为空");
+            return 0;
+        }
+
+        int replacedCount = 0;
+        var affectedInfos = new List<GIContributionInfo>();
+
+        foreach (var info in allContributionInfos)
+        {
+            if (info.Renderer == null) continue;
+
+            var materials = info.Renderer.sharedMaterials.ToArray();
+            bool hasChanged = false;
+
+            for (int i = 0; i < materials.Length; i++)
+            {
+                if (materials[i] == oldMaterial)
+                {
+                    materials[i] = newMaterial;
+                    hasChanged = true;
+                    replacedCount++;
+                }
+            }
+
+            if (hasChanged)
+            {
+                // 记录撤销操作
+                Undo.RecordObject(info.Renderer, $"Replace Material {oldMaterial.name} with {newMaterial.name}");
+                info.Renderer.sharedMaterials = materials;
+                info.Materials = materials; // 更新缓存
+                affectedInfos.Add(info);
+            }
+        }
+
+        if (replacedCount > 0)
+        {
+            RebuildGroupedData();
+            OnDataChanged?.Invoke();
+            Debug.Log($"成功替换 {replacedCount} 个材质引用，影响 {affectedInfos.Count} 个对象");
+        }
+
+        return replacedCount;
+    }
+
     public void Dispose()
     {
         OnDataChanged = null;
@@ -644,6 +696,28 @@ public class GIContributionUIManager
                 {
                     Selection.objects = materialGroup.Users.Select(u => u.GameObject).ToArray();
                 }
+
+                // 新增：替换材质按钮
+                GUI.color = Color.yellow;
+                if (GUILayout.Button("替换材质", GUILayout.Width(80)))
+                {
+                    MaterialSelectionDialog.Show((newMaterial) => 
+                    {
+                        if (EditorUtility.DisplayDialog("确认替换", 
+                            $"确定要将材质 '{materialGroup.Material.name}' 替换为 '{newMaterial.name}' 吗？\n" +
+                            $"这将影响 {materialGroup.Users.Count} 个对象。", 
+                            "确定", "取消"))
+                        {
+                            int replacedCount = contributionManager.ReplaceMaterial(materialGroup.Material, newMaterial);
+                            if (replacedCount > 0)
+                            {
+                                EditorUtility.DisplayDialog("替换完成", 
+                                    $"成功替换了 {replacedCount} 个材质引用", "确定");
+                            }
+                        }
+                    });
+                }
+                GUI.color = originalColor;
             }
 
             // 使用者列表（只在展开时显示）
@@ -726,3 +800,115 @@ public class GIContributionUIManager
 }
 
 #endregion
+
+/// <summary>
+/// 材质选择对话框
+/// </summary>
+public class MaterialSelectionDialog : EditorWindow
+{
+    private Material selectedMaterial;
+    private System.Action<Material> onMaterialSelected;
+    private string searchFilter = "";
+    private Vector2 scrollPosition;
+    private Material[] allMaterials;
+
+    public static void Show(System.Action<Material> onMaterialSelected)
+    {
+        var window = GetWindow<MaterialSelectionDialog>("选择替换材质");
+        window.onMaterialSelected = onMaterialSelected;
+        window.Initialize();
+        window.ShowModalUtility();
+    }
+
+    private void Initialize()
+    {
+        // 获取项目中所有材质
+        string[] guids = AssetDatabase.FindAssets("t:Material");
+        allMaterials = guids.Select(guid => AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(guid)))
+                           .Where(mat => mat != null)
+                           .OrderBy(mat => mat.name)
+                           .ToArray();
+    }
+
+    private void OnGUI()
+    {
+        GUILayout.Label("选择要替换的材质", EditorStyles.boldLabel);
+        EditorGUILayout.Space();
+
+        // 搜索栏
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            GUILayout.Label("搜索:", GUILayout.Width(50));
+            searchFilter = EditorGUILayout.TextField(searchFilter);
+            if (GUILayout.Button("清除", GUILayout.Width(50)))
+            {
+                searchFilter = "";
+            }
+        }
+
+        EditorGUILayout.Space();
+
+        // 当前选中材质显示
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            GUILayout.Label("选中材质:", GUILayout.Width(80));
+            selectedMaterial = EditorGUILayout.ObjectField(selectedMaterial, typeof(Material), false) as Material;
+        }
+
+        EditorGUILayout.Space();
+
+        // 材质列表
+        scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
+        
+        var filteredMaterials = string.IsNullOrEmpty(searchFilter) ? allMaterials : 
+            allMaterials.Where(mat => mat.name.ToLower().Contains(searchFilter.ToLower())).ToArray();
+
+        foreach (var material in filteredMaterials)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button(AssetPreview.GetMiniThumbnail(material), GUILayout.Width(20), GUILayout.Height(20)))
+                {
+                    selectedMaterial = material;
+                }
+                
+                if (GUILayout.Button(material.name, "Label"))
+                {
+                    selectedMaterial = material;
+                }
+                
+                if (selectedMaterial == material)
+                {
+                    GUILayout.Label("✓", GUILayout.Width(20));
+                }
+            }
+        }
+        
+        EditorGUILayout.EndScrollView();
+
+        EditorGUILayout.Space();
+
+        // 按钮
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            if (GUILayout.Button("确定", GUILayout.Height(30)))
+            {
+                if (selectedMaterial != null)
+                {
+                    onMaterialSelected?.Invoke(selectedMaterial);
+                    Close();
+                }
+                else
+                {
+                    EditorUtility.DisplayDialog("错误", "请选择一个材质", "确定");
+                }
+            }
+
+            if (GUILayout.Button("取消", GUILayout.Height(30)))
+            {
+                Close();
+            }
+        }
+    }
+}
+
