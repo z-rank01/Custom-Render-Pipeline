@@ -360,9 +360,9 @@ public class GIContributionManager : IDisposable
     }
 
     /// <summary>
-    /// 替换指定材质为新材质
+    /// 替换指定材质为新材质（只替换指定GI状态的对象）
     /// </summary>
-    public int ReplaceMaterial(Material oldMaterial, Material newMaterial)
+    public int ReplaceMaterial(Material oldMaterial, Material newMaterial, bool targetContributeGI)
     {
         if (oldMaterial == null || newMaterial == null)
         {
@@ -373,7 +373,10 @@ public class GIContributionManager : IDisposable
         int replacedCount = 0;
         var affectedInfos = new List<GIContributionInfo>();
 
-        foreach (var info in allContributionInfos)
+        // 只处理指定GI状态的对象
+        var targetInfos = allContributionInfos.Where(info => info.ContributeGI == targetContributeGI);
+
+        foreach (var info in targetInfos)
         {
             if (info.Renderer == null) continue;
 
@@ -404,7 +407,8 @@ public class GIContributionManager : IDisposable
         {
             RebuildGroupedData();
             OnDataChanged?.Invoke();
-            Debug.Log($"成功替换 {replacedCount} 个材质引用，影响 {affectedInfos.Count} 个对象");
+            string giStatusText = targetContributeGI ? "贡献GI" : "非贡献GI";
+            Debug.Log($"成功在{giStatusText}对象中替换 {replacedCount} 个材质引用，影响 {affectedInfos.Count} 个对象");
         }
 
         return replacedCount;
@@ -650,6 +654,9 @@ public class GIContributionUIManager
             expandedMaterials[materialKey] = false;
         }
 
+        // 判断当前材质组属于哪个GI状态（根据第一个用户的状态）
+        bool isContributeGI = materialGroup.Users.FirstOrDefault()?.ContributeGI ?? false;
+
         using (new EditorGUILayout.VerticalScope("box"))
         {
             // 材质标题行
@@ -697,22 +704,24 @@ public class GIContributionUIManager
                     Selection.objects = materialGroup.Users.Select(u => u.GameObject).ToArray();
                 }
 
-                // 新增：替换材质按钮
+                // 修改：替换材质按钮 - 只替换当前GI状态的对象
                 GUI.color = Color.yellow;
-                if (GUILayout.Button("替换材质", GUILayout.Width(80)))
+                string giStatusText = isContributeGI ? "贡献GI" : "非贡献GI";
+                if (GUILayout.Button($"替换材质({giStatusText})", GUILayout.Width(120)))
                 {
                     MaterialSelectionDialog.Show((newMaterial) => 
                     {
+                        int affectedCount = materialGroup.Users.Count(u => u.ContributeGI == isContributeGI);
                         if (EditorUtility.DisplayDialog("确认替换", 
-                            $"确定要将材质 '{materialGroup.Material.name}' 替换为 '{newMaterial.name}' 吗？\n" +
-                            $"这将影响 {materialGroup.Users.Count} 个对象。", 
+                            $"确定要将{giStatusText}对象中的材质 '{materialGroup.Material.name}' 替换为 '{newMaterial.name}' 吗？\n" +
+                            $"这将只影响 {affectedCount} 个{giStatusText}对象。", 
                             "确定", "取消"))
                         {
-                            int replacedCount = contributionManager.ReplaceMaterial(materialGroup.Material, newMaterial);
+                            int replacedCount = contributionManager.ReplaceMaterial(materialGroup.Material, newMaterial, isContributeGI);
                             if (replacedCount > 0)
                             {
                                 EditorUtility.DisplayDialog("替换完成", 
-                                    $"成功替换了 {replacedCount} 个材质引用", "确定");
+                                    $"成功在{giStatusText}对象中替换了 {replacedCount} 个材质引用", "确定");
                             }
                         }
                     });
