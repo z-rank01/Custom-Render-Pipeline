@@ -34,7 +34,7 @@ public class HierarchicalZResources : System.IDisposable
     public ComputeBuffer AppendBuffer => _appendBuffer;
     public Matrix4x4[] ObjectToWorldMatrices => _objectToWorldMatrices;
     public Matrix4x4 WorldToCameraMatrix => _worldToCameraMatrices;
-
+    
     public HierarchicalZResources(int width, int height, Renderer[] renderers, Camera camera)
     {
         _objectCount = renderers.Length;

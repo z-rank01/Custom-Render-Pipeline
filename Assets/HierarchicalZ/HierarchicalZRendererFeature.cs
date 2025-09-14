@@ -1,12 +1,25 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
 public class HierarchicalZRendererFeature : ScriptableRendererFeature
 {
+    public List<Renderer> renderObjects = new List<Renderer>();
+    public ComputeShader computeShader;
+    private static readonly int Culling = Shader.PropertyToID("Culling");
+    
     class HiZRenderPass : ScriptableRenderPass
     {
-        HierarchicalZResources hiZResources;
+        private HierarchicalZResources _hiZResources;
+        private List<Renderer> _renderObjects;
+        private ComputeShader _computeShader;
+
+        public HiZRenderPass(List<Renderer> renderObjects, ComputeShader computeShader)
+        {
+            _renderObjects = renderObjects;
+            _computeShader = computeShader;
+        }
         
         // This method is called before executing the render pass.
         // It can be used to configure render targets and their clear state. Also to create temporary render target textures.
@@ -16,7 +29,8 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
         public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
         {
             var colorTextureDisc = renderingData.cameraData.cameraTargetDescriptor;
-            
+            _hiZResources ??= new HierarchicalZResources(colorTextureDisc.width, colorTextureDisc.height, _renderObjects.ToArray(), Camera.current);
+            _hiZResources.UpdateObjects(_renderObjects.ToArray(), Camera.current);
         }
 
         // Here you can implement the rendering logic.
@@ -44,6 +58,13 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             // 1. 拷贝 depth 到 mip 0 (或用 Blit / Compute)
             // 2. 循环 dispatch 生成后续 mip (每次上一次的 mip 作为输入)
             // 3. 保持与 mipCount 一致
+            cmd.CopyTexture(cameraDepth, 0, 0, _hiZResources.HiZTexture, 0, 0);
+            for (int i = 0; i < _hiZResources.MipCount; i++)
+            {
+                int gx = 0;
+                int gy = 0;
+                cmd.SetComputeTextureParam(_computeShader, 0, Culling, _hiZResources.HiZTexture, i);    // source mip level
+            }
         }
 
         // 遮挡测试占位接口
@@ -57,6 +78,12 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             // 输出:
             //  - _visibilityResultBuffer 或 Append 列表
         }
+
+        // 间接绘制可见物体
+        private void DrawVisibleIndirect(CommandBuffer cmd, ComputeShader cs, int kernelTest)
+        {
+            
+        }
     }
 
     HiZRenderPass m_HiZPass;
@@ -64,7 +91,7 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
     /// <inheritdoc/>
     public override void Create()
     {
-        m_HiZPass = new HiZRenderPass
+        m_HiZPass = new HiZRenderPass(renderObjects, computeShader)
         {
             // need to be after depth prepass while before opaque pass
             renderPassEvent = RenderPassEvent.BeforeRenderingOpaques
