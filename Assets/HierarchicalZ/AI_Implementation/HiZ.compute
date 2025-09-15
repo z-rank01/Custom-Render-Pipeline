@@ -15,9 +15,9 @@ Texture2D<float>      _CameraDepthTexture;
 SamplerState          sampler_PointClamp; // 需在 C# 侧默认 point clamp
 
 // 源 mip（只读）与目标 mip（写）
-Texture2D<float>      _SourceHiZ;      // 读取上一级 mip
-RWTexture2D<float>    _DestHiZ;        // 写入当前 mip
-RWTexture2D<float>    _HiZMip0;        // 第一层直接写
+Texture2D<float>      _SrcMipTexture;       // 读取上一级 mip
+RWTexture2D<float>    _DstMipTexture;       // 写入当前 mip
+RWTexture2D<float>    _HiZMip0;             // 第一层直接写
 
 // Culling 采样使用整张 HiZ（只读）
 Texture2D<float>      _HiZSampleTex;   
@@ -30,8 +30,8 @@ cbuffer Params
     float4 _ScreenSize; // w,h,1/w,1/h (原始分辨率)
     int _InstanceCount;
     int _DebugDisableOcclusion;
-    int _SrcMip;
-    int _DstMip;
+    int _SrcMipLevel;
+    int _DstMipLevel;
     int _HiZWidth;
     int _HiZHeight;
     int _HiZMipCount;
@@ -73,13 +73,13 @@ void BuildHiZFirst(uint3 id:SV_DispatchThreadID)
 [numthreads(8,8,1)]
 void BuildHiZDown(uint3 id:SV_DispatchThreadID)
 {
-    uint dstW = max(1, (uint)_HiZWidth  >> _DstMip);
-    uint dstH = max(1, (uint)_HiZHeight >> _DstMip);
+    uint dstW = max(1, (uint)_HiZWidth  >> _DstMipLevel);
+    uint dstH = max(1, (uint)_HiZHeight >> _DstMipLevel);
     if(id.x >= dstW || id.y >= dstH) return;
 
     int2 dst = int2(id.xy);
     // 计算源尺寸 (上一层)
-    float2 srcSize = float2(max(1, _HiZWidth  >> _SrcMip), max(1, _HiZHeight >> _SrcMip));
+    float2 srcSize = float2(max(1, _HiZWidth  >> _SrcMipLevel), max(1, _HiZHeight >> _SrcMipLevel));
     // 对应源像素左上 (2x2)
     float2 basePix = (dst * 2);
     float m = 0;
@@ -90,10 +90,10 @@ void BuildHiZDown(uint3 id:SV_DispatchThreadID)
     {
         float2 sp = basePix + float2(ox,oy) + 0.5;
         float2 suv = sp / srcSize;
-        float v = _SourceHiZ.SampleLevel(sampler_PointClamp, suv, 0);
+        float v = _SrcMipTexture.SampleLevel(sampler_PointClamp, suv, 0);
         m = max(m, v);
     }
-    _DestHiZ[dst] = m;
+    _DstMipTexture[dst] = m;
 }
 
 // 视锥 + 遮挡剔除
