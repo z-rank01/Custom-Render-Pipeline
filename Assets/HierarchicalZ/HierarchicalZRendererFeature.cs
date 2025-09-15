@@ -193,7 +193,7 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
         m_HiZPass = new HiZRenderPass(settings)
         {
             // need to be after depth prepass while before opaque pass
-            renderPassEvent = RenderPassEvent.AfterRenderingPrePasses
+            renderPassEvent = RenderPassEvent.AfterRenderingOpaques
         };
     }
 
