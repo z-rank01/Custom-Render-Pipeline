@@ -1,0 +1,123 @@
+// HiZ.compute (GLES3 兼容重写)
+// 去除 .mips 直接索引，改用显式绑定源/目标 mip 纹理，避免在 OpenGL ES 后端的编译错误。
+
+#pragma kernel BuildHiZFirst
+#pragma kernel BuildHiZDown
+#pragma kernel FrustumOcclusionCull
+
+StructuredBuffer<float3> _BoundsCenter;
+StructuredBuffer<float3> _BoundsExtent;
+AppendStructuredBuffer<uint> _VisibleIndices;
+RWStructuredBuffer<uint> _Args;
+
+// 深度来源 + HiZ 构建
+Texture2D<float>      _CameraDepthTexture;
+SamplerState          sampler_PointClamp; // 需在 C# 侧默认 point clamp
+
+// 源 mip（只读）与目标 mip（写）
+Texture2D<float>      _SourceHiZ;      // 读取上一级 mip
+RWTexture2D<float>    _DestHiZ;        // 写入当前 mip
+RWTexture2D<float>    _HiZMip0;        // 第一层直接写
+
+// Culling 采样使用整张 HiZ（只读）
+Texture2D<float>      _HiZSampleTex;   
+
+cbuffer Params
+{
+    float4x4 _VP;
+    float4x4 _View;
+    float4x4 _Proj;
+    float4 _ScreenSize; // w,h,1/w,1/h (原始分辨率)
+    int _InstanceCount;
+    int _DebugDisableOcclusion;
+    int _SrcMip;
+    int _DstMip;
+    int _HiZWidth;
+    int _HiZHeight;
+    int _HiZMipCount;
+};
+
+bool FrustumTestAABB(float3 center, float3 extent)
+{
+    [unroll]
+    for(int i=0;i<8;i++)
+    {
+        float3 corner = center + extent * (float3( (i & 1)?1:-1, (i & 2)?1:-1, (i & 4)?1:-1));
+        float4 clip = mul(_VP, float4(corner,1));
+        if( clip.x > -clip.w && clip.x < clip.w &&
+            clip.y > -clip.w && clip.y < clip.w &&
+            clip.z > 0 && clip.z < clip.w ) return true;
+    }
+    return false;
+}
+
+float ProjectDepth01(float3 worldPos)
+{
+    float4 clip = mul(_VP, float4(worldPos,1));
+    return clip.z / clip.w;
+}
+
+// 第一层：从 Camera 深度复制 (最大值策略：直接写)
+[numthreads(8,8,1)]
+void BuildHiZFirst(uint3 id:SV_DispatchThreadID)
+{
+    uint w = (uint)_HiZWidth;
+    uint h = (uint)_HiZHeight;
+    if(id.x >= w || id.y >= h) return;
+    float2 uv = (id.xy + 0.5) / float2(w,h);
+    float d = _CameraDepthTexture.SampleLevel(sampler_PointClamp, uv, 0);
+    _HiZMip0[int2(id.xy)] = d;
+}
+
+// 下采样：从 SrcMip (2x2) 取最大值写到 DstMip
+[numthreads(8,8,1)]
+void BuildHiZDown(uint3 id:SV_DispatchThreadID)
+{
+    uint dstW = max(1, (uint)_HiZWidth  >> _DstMip);
+    uint dstH = max(1, (uint)_HiZHeight >> _DstMip);
+    if(id.x >= dstW || id.y >= dstH) return;
+
+    int2 dst = int2(id.xy);
+    // 计算源尺寸 (上一层)
+    float2 srcSize = float2(max(1, _HiZWidth  >> _SrcMip), max(1, _HiZHeight >> _SrcMip));
+    // 对应源像素左上 (2x2)
+    float2 basePix = (dst * 2);
+    float m = 0;
+    [unroll]
+    for(int oy=0; oy<2; oy++)
+    [unroll]
+    for(int ox=0; ox<2; ox++)
+    {
+        float2 sp = basePix + float2(ox,oy) + 0.5;
+        float2 suv = sp / srcSize;
+        float v = _SourceHiZ.SampleLevel(sampler_PointClamp, suv, 0);
+        m = max(m, v);
+    }
+    _DestHiZ[dst] = m;
+}
+
+// 视锥 + 遮挡剔除
+[numthreads(64,1,1)]
+void FrustumOcclusionCull(uint3 id:SV_DispatchThreadID)
+{
+    uint index = id.x;
+    if(index >= _InstanceCount) return;
+
+    float3 center = _BoundsCenter[index];
+    float3 extent = _BoundsExtent[index];
+    if(!FrustumTestAABB(center, extent)) return;
+
+    if(_DebugDisableOcclusion == 0)
+    {
+        float depth01 = ProjectDepth01(center);
+        int mip = max(0, _HiZMipCount - 1);
+        float4 clip = mul(_VP, float4(center,1));
+        float2 ndc = clip.xy / clip.w; // -1..1
+        float2 uv = ndc * 0.5 + 0.5;
+        if(uv.x < 0 || uv.x > 1 || uv.y < 0 || uv.y > 1) return;
+        float hizDepth = _HiZSampleTex.SampleLevel(sampler_PointClamp, uv, mip);
+        if(hizDepth < depth01 - 0.0005) return;
+    }
+
+    _VisibleIndices.Append(index);
+}
