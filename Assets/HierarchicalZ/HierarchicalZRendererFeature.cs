@@ -27,7 +27,6 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
         private HierarchicalZResources _hiZResources;
         private HierarchicalZRenderSettings _settings;
 
-        private static readonly int kBuildHiZId = Shader.PropertyToID("BuildHiZDown");
         private static readonly int kSrcMipTextureId = Shader.PropertyToID("_SrcMipTexture");
         private static readonly int kDstMipTextureId = Shader.PropertyToID("_DstMipTexture");
         private static readonly int kSrcMipLevelId = Shader.PropertyToID("_SrcMipLevel");
@@ -35,6 +34,7 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
         private static readonly int kFullScreenWidthId = Shader.PropertyToID("_FullScreenWidth");
         private static readonly int kFullScreenHeightId = Shader.PropertyToID("_FullScreenHeight");
         private static readonly int kMipTotalId = Shader.PropertyToID("_MipTotal");
+        private static readonly int kSrcDepthTextureId = Shader.PropertyToID("_SrcDepthTexture"); // 新增: 原始深度纹理
         // Kernels
         private int kBuildHiZFirst = -1;
         private int kBuildHiZDown = -1;
@@ -52,9 +52,15 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
         // The render pipeline will ensure target setup and clearing happens in a performant manner.
         public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
         {
+            // 1. 收集场景内物体
+            CollectSceneObjects();
+
+            // 2. 初始化或更新资源
             var colorTextureDisc = renderingData.cameraData.cameraTargetDescriptor;
-            _hiZResources ??= new HierarchicalZResources(colorTextureDisc.width, colorTextureDisc.height, _settings.renderObjects.ToArray(), Camera.current);
-            _hiZResources.UpdateObjects(_settings.renderObjects.ToArray(), Camera.current);
+            _hiZResources ??= new HierarchicalZResources(colorTextureDisc.width, colorTextureDisc.height, _settings.renderObjects.ToArray(), Camera.main);
+            _hiZResources.UpdateObjects(_settings.renderObjects.ToArray(), Camera.main);
+            
+            // 3. 缓存 kernel
             if (_settings.computeShader && kBuildHiZFirst < 0)
             {
                 kBuildHiZFirst = _settings.computeShader.FindKernel("BuildHiZFirst");
@@ -80,8 +86,7 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
                 var tempColorTexture = _settings.tempRenderTarget;
                 var cameraTargetDescriptor = renderingData.cameraData.cameraTargetDescriptor;
                 cameraTargetDescriptor.depthBufferBits = 0;
-                RenderingUtils.ReAllocateIfNeeded(ref tempColorTexture, cameraTargetDescriptor,
-                    FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_SceneColor");
+                RenderingUtils.ReAllocateIfNeeded(ref tempColorTexture, cameraTargetDescriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_SceneColor");
                 cmd.Blit(colorTarget.rt, tempColorTexture);
                 cmd.SetGlobalTexture("_DebugColorInput", tempColorTexture);
                 cmd.SetGlobalTexture("_DebugHiZTexture", _hiZResources.HiZTexture);
@@ -104,37 +109,60 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
         {
         }
 
+        // 收集场景内物体
+        private void CollectSceneObjects()
+        {
+            // TODO:
+            // 遍历场景内所有物体，筛选出需要进行 Hi-Z 测试的物体（例如根据标签、图层等条件）
+            // 更新 _hiZResources 中的对象数据（AABB、变换矩阵等）
+            var objects = GameObject.FindObjectsOfType<Renderer>();
+            _settings.renderObjects = new List<Renderer>(objects);
+        }
+
         // 构建 Hi-Z 金字塔占位接口
         private void BuildHiZPyramid(CommandBuffer cmd, RTHandle cameraDepth)
         {
-            // TODO:
-            // 1. 拷贝 depth 到 mip 0 (或用 Blit / Compute)
-            // 2. 循环 dispatch 生成后续 mip (每次上一次的 mip 作为输入)
-            // 3. 保持与 mipCount 一致
-
-            // copy to mip 0
-            cmd.CopyTexture(cameraDepth, 0, 0, _hiZResources.HiZTexture, 0, 0);
-            // build down
             int width = _hiZResources.HiZTexture.rt.width;
             int height = _hiZResources.HiZTexture.rt.height;
             int mipCount = _hiZResources.MipCount;
-            cmd.SetComputeIntParam(_settings.computeShader, kFullScreenWidthId, width);
-            cmd.SetComputeIntParam(_settings.computeShader, kFullScreenHeightId, height);
-            cmd.SetComputeIntParam(_settings.computeShader, kMipTotalId, mipCount);
-            for (int i = 1; i < mipCount; i++)
+
+            // 用 Compute 生成 mip0 (摄像机深度 -> R32F)，避免 CopyTexture 跨格式报错
+            if (_settings.computeShader && kBuildHiZFirst >= 0)
             {
-                int mipWidth = Mathf.Max(1, width >> i);
-                int mipHeight = Mathf.Max(1, height >> i);
-                int gx = (mipWidth + 7) / 8;
-                int gy = (mipHeight + 7) / 8;
-                cmd.SetComputeIntParam(_settings.computeShader, kSrcMipLevelId, i - 1);
-                cmd.SetComputeIntParam(_settings.computeShader, kDstMipLevelId, i);
-                cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZId, kSrcMipTextureId, _hiZResources.HiZTexture, i - 1);      // source mip level
-                cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZId, kDstMipTextureId, _hiZResources.HiZTexture, i);          // dest mip level
-                cmd.DispatchCompute(_settings.computeShader, kBuildHiZDown, gx, gy, 1);
+                int gx0 = (width + 7) / 8;
+                int gy0 = (height + 7) / 8;
+                cmd.SetComputeIntParam(_settings.computeShader, kFullScreenWidthId, width);
+                cmd.SetComputeIntParam(_settings.computeShader, kFullScreenHeightId, height);
+                cmd.SetComputeIntParam(_settings.computeShader, kMipTotalId, mipCount);
+                cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZFirst, kSrcDepthTextureId, cameraDepth);                // 深度输入
+                cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZFirst, kDstMipTextureId, _hiZResources.HiZTexture, 0);  // 写入 mip0
+                cmd.DispatchCompute(_settings.computeShader, kBuildHiZFirst, gx0, gy0, 1);
+            }
+            else
+            {
+                // 兜底: Blit 方式 (需要一个简单 shader 采样深度输出 R32F；若当前材质不具备则只能占位)
+                cmd.Blit(cameraDepth, _hiZResources.HiZTexture); // 仅写 base level
+            }
+
+            // 逐级生成剩余 mip
+            if (_settings.computeShader && kBuildHiZDown >= 0)
+            {
+                for (int i = 1; i < mipCount; i++)
+                {
+                    int mipWidth = Mathf.Max(1, width >> i);
+                    int mipHeight = Mathf.Max(1, height >> i);
+                    int gx = (mipWidth + 7) / 8;
+                    int gy = (mipHeight + 7) / 8;
+
+                    cmd.SetComputeIntParam(_settings.computeShader, kSrcMipLevelId, i - 1);
+                    cmd.SetComputeIntParam(_settings.computeShader, kDstMipLevelId, i);
+                    cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZDown, kSrcMipTextureId, _hiZResources.HiZTexture, i - 1);
+                    cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZDown, kDstMipTextureId, _hiZResources.HiZTexture, i);
+                    cmd.DispatchCompute(_settings.computeShader, kBuildHiZDown, gx, gy, 1);
+                }
             }
 #if UNITY_EDITOR
-            Debug.Log($"Build HiZ Texture: {width}x{height}, MipCount: {mipCount}");
+            Debug.Log($"Build HiZ Texture (Compute Path:{_settings.computeShader != null}): {width}x{height}, MipCount: {mipCount}");
 #endif
         }
 

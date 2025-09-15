@@ -66,7 +66,7 @@ void BuildHiZFirst(uint3 id:SV_DispatchThreadID)
     if(id.x >= w || id.y >= h) return;
     float2 uv = (id.xy + 0.5) / float2(w,h);
     float d = _CameraDepthTexture.SampleLevel(sampler_PointClamp, uv, 0);
-    _HiZMip0[int2(id.xy)] = d;
+    _DstMipTexture[int2(id.xy)] = d;
 }
 
 // 下采样：从 SrcMip (2x2) 取最大值写到 DstMip
