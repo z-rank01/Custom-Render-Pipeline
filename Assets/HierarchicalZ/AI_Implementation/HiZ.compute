@@ -12,7 +12,7 @@ Texture2D<float>      _SrcDepthTexture;
 SamplerState          sampler_PointClamp; // 需在 C# 侧默认 point clamp
 
 // 源 mip（只读）与目标 mip（写）
-Texture2D<float>      _SrcMipTexture;       // 读取上一级 mip
+RWTexture2D<float>      _SrcMipTexture;       // 读取上一级 mip (由 C# 侧绑定具体 mip 子资源)
 RWTexture2D<float>    _DstMipTexture;       // 写入当前 mip
 
 // Culling 采样使用整张 HiZ（只读）
@@ -66,6 +66,7 @@ void BuildHiZFirst(uint3 id:SV_DispatchThreadID)
 }
 
 // 下采样：从 SrcMip (2x2) 取最大值写到 DstMip
+// 注意：C# 侧已将 _SrcMipTexture/_DstMipTexture 绑定为具体 mip 子资源，因此这里使用 .Load 精确读取整数 texel，避免使用 SampleLevel 时（某些驱动/平台上）读到 0 的问题。
 [numthreads(8,8,1)]
 void BuildHiZDown(uint3 id:SV_DispatchThreadID)
 {
@@ -73,21 +74,25 @@ void BuildHiZDown(uint3 id:SV_DispatchThreadID)
     uint dstH = max(1, (uint)_HiZHeight >> _DstMipLevel);
     if(id.x >= dstW || id.y >= dstH) return;
 
+    // 上一级源尺寸
+    uint srcW = max(1, _HiZWidth  >> _SrcMipLevel);
+    uint srcH = max(1, _HiZHeight >> _SrcMipLevel);
+
     int2 dst = int2(id.xy);
-    // 计算源尺寸 (上一层)
-    float2 srcSize = float2(max(1, _HiZWidth  >> _SrcMipLevel), max(1, _HiZHeight >> _SrcMipLevel));
-    // 对应源像素左上 (2x2)
-    float2 basePix = (dst * 2);
-    float m = 0;
+    int2 basePix = dst * 2; // 对应上一级左上 texel
+
+    float m = 0.0; // (如果使用最小深度金字塔可改成 1.0 并用 min)
     [unroll]
     for(int oy=0; oy<2; oy++)
     {
         [unroll]
         for(int ox=0; ox<2; ox++)
         {
-            float2 sp = basePix + float2(ox,oy) + 0.5;
-            float2 suv = sp / srcSize;
-            float v = _SrcMipTexture.SampleLevel(sampler_PointClamp, suv, 0);
+            int2 sp = basePix + int2(ox,oy);
+            // 处理奇数尺寸时越界 (Clamp) —— 防止访问 src 边界外
+            sp.x = min(sp.x, srcW - 1);
+            sp.y = min(sp.y, srcH - 1);
+            float v = _SrcMipTexture.Load(int3(sp,0)); // 子资源中的 mip0（即上一层真实 mip）
             m = max(m, v);
         }
     }
