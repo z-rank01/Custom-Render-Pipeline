@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 355c08fbfa76ac546a464bcc24fc97f4, type: 3}
   m_Name: HierarchicalZRendererFeature
   m_EditorClassIdentifier: 
-  m_Active: 1
+  m_Active: 0
   settings:
     renderObjects:
     - {fileID: 0}
