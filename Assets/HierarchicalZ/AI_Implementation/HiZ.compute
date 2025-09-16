@@ -1,6 +1,3 @@
-// HiZ.compute (GLES3 兼容重写)
-// 去除 .mips 直接索引，改用显式绑定源/目标 mip 纹理，避免在 OpenGL ES 后端的编译错误。
-
 #pragma kernel BuildHiZFirst
 #pragma kernel BuildHiZDown
 #pragma kernel FrustumOcclusionCull
@@ -11,13 +8,12 @@ AppendStructuredBuffer<uint> _VisibleIndices;
 RWStructuredBuffer<uint> _Args;
 
 // 深度来源 + HiZ 构建
-Texture2D<float>      _CameraDepthTexture;
+Texture2D<float>      _SrcDepthTexture;
 SamplerState          sampler_PointClamp; // 需在 C# 侧默认 point clamp
 
 // 源 mip（只读）与目标 mip（写）
 Texture2D<float>      _SrcMipTexture;       // 读取上一级 mip
 RWTexture2D<float>    _DstMipTexture;       // 写入当前 mip
-RWTexture2D<float>    _HiZMip0;             // 第一层直接写
 
 // Culling 采样使用整张 HiZ（只读）
 Texture2D<float>      _HiZSampleTex;   
@@ -65,7 +61,7 @@ void BuildHiZFirst(uint3 id:SV_DispatchThreadID)
     uint h = (uint)_HiZHeight;
     if(id.x >= w || id.y >= h) return;
     float2 uv = (id.xy + 0.5) / float2(w,h);
-    float d = _CameraDepthTexture.SampleLevel(sampler_PointClamp, uv, 0);
+    float d = _SrcDepthTexture.SampleLevel(sampler_PointClamp, uv, 0);
     _DstMipTexture[int2(id.xy)] = d;
 }
 
@@ -85,13 +81,15 @@ void BuildHiZDown(uint3 id:SV_DispatchThreadID)
     float m = 0;
     [unroll]
     for(int oy=0; oy<2; oy++)
-    [unroll]
-    for(int ox=0; ox<2; ox++)
     {
-        float2 sp = basePix + float2(ox,oy) + 0.5;
-        float2 suv = sp / srcSize;
-        float v = _SrcMipTexture.SampleLevel(sampler_PointClamp, suv, 0);
-        m = max(m, v);
+        [unroll]
+        for(int ox=0; ox<2; ox++)
+        {
+            float2 sp = basePix + float2(ox,oy) + 0.5;
+            float2 suv = sp / srcSize;
+            float v = _SrcMipTexture.SampleLevel(sampler_PointClamp, suv, 0);
+            m = max(m, v);
+        }
     }
     _DstMipTexture[dst] = m;
 }

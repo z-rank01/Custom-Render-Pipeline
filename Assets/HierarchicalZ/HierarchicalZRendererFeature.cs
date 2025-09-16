@@ -31,10 +31,11 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
         private static readonly int kDstMipTextureId = Shader.PropertyToID("_DstMipTexture");
         private static readonly int kSrcMipLevelId = Shader.PropertyToID("_SrcMipLevel");
         private static readonly int kDstMipLevelId = Shader.PropertyToID("_DstMipLevel");
-        private static readonly int kFullScreenWidthId = Shader.PropertyToID("_FullScreenWidth");
-        private static readonly int kFullScreenHeightId = Shader.PropertyToID("_FullScreenHeight");
-        private static readonly int kMipTotalId = Shader.PropertyToID("_MipTotal");
-        private static readonly int kSrcDepthTextureId = Shader.PropertyToID("_SrcDepthTexture"); // 新增: 原始深度纹理
+        // Correct parameter names matching compute shader (_HiZWidth/_HiZHeight/_HiZMipCount)
+        private static readonly int kHiZWidthId = Shader.PropertyToID("_HiZWidth");
+        private static readonly int kHiZHeightId = Shader.PropertyToID("_HiZHeight");
+        private static readonly int kHiZMipCountId = Shader.PropertyToID("_HiZMipCount");
+        private static readonly int kSrcDepthTextureId = Shader.PropertyToID("_SrcDepthTexture");
         // Kernels
         private int kBuildHiZFirst = -1;
         private int kBuildHiZDown = -1;
@@ -58,8 +59,9 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             // 2. 初始化或更新资源
             var colorTextureDisc = renderingData.cameraData.cameraTargetDescriptor;
             _hiZResources ??= new HierarchicalZResources(colorTextureDisc.width, colorTextureDisc.height, _settings.renderObjects.ToArray(), Camera.main);
+            _hiZResources.RecreateHiZIfNeeded(colorTextureDisc.width, colorTextureDisc.height);
             _hiZResources.UpdateObjects(_settings.renderObjects.ToArray(), Camera.main);
-            
+
             // 3. 缓存 kernel
             if (_settings.computeShader && kBuildHiZFirst < 0)
             {
@@ -131,9 +133,9 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             {
                 int gx0 = (width + 7) / 8;
                 int gy0 = (height + 7) / 8;
-                cmd.SetComputeIntParam(_settings.computeShader, kFullScreenWidthId, width);
-                cmd.SetComputeIntParam(_settings.computeShader, kFullScreenHeightId, height);
-                cmd.SetComputeIntParam(_settings.computeShader, kMipTotalId, mipCount);
+                cmd.SetComputeIntParam(_settings.computeShader, kHiZWidthId, width);
+                cmd.SetComputeIntParam(_settings.computeShader, kHiZHeightId, height);
+                cmd.SetComputeIntParam(_settings.computeShader, kHiZMipCountId, mipCount);
                 cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZFirst, kSrcDepthTextureId, cameraDepth);                // 深度输入
                 cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZFirst, kDstMipTextureId, _hiZResources.HiZTexture, 0);  // 写入 mip0
                 cmd.DispatchCompute(_settings.computeShader, kBuildHiZFirst, gx0, gy0, 1);
@@ -156,6 +158,10 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
 
                     cmd.SetComputeIntParam(_settings.computeShader, kSrcMipLevelId, i - 1);
                     cmd.SetComputeIntParam(_settings.computeShader, kDstMipLevelId, i);
+                    // 传递基础尺寸（部分平台可能每个 kernel 需要再次设置）
+                    cmd.SetComputeIntParam(_settings.computeShader, kHiZWidthId, width);
+                    cmd.SetComputeIntParam(_settings.computeShader, kHiZHeightId, height);
+                    cmd.SetComputeIntParam(_settings.computeShader, kHiZMipCountId, mipCount);
                     cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZDown, kSrcMipTextureId, _hiZResources.HiZTexture, i - 1);
                     cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZDown, kDstMipTextureId, _hiZResources.HiZTexture, i);
                     cmd.DispatchCompute(_settings.computeShader, kBuildHiZDown, gx, gy, 1);
