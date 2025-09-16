@@ -13,7 +13,7 @@ public class HierarchicalZRenderSettings
     // Debug
     public bool debug;
     public Material debugHiZTextureMaterial;
-    public int debugMipLevel;
+    [Range(0, 10)] public int debugMipLevel;
     [Range(0.1f, 1f)] public float debugHeightRatio;
 }
 

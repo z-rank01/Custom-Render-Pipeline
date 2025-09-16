@@ -35,7 +35,7 @@ Shader "Hidden/HiZ/Debug"
                 half debugRegionSize = _DebugParams.y;
                 half2 debugRegionStart = half2(1.0 - debugRegionSize, 0.0);
                 half2 debugRegionEnd = half2(1.0, debugRegionSize);
-                half4 debugColor = SAMPLE_TEXTURE2D(_DebugColorInput, sampler_DebugColorInput, i.uv);
+                half4 sceneColor = SAMPLE_TEXTURE2D(_DebugColorInput, sampler_DebugColorInput, i.uv);
 
                 if (i.uv.x >= debugRegionStart.x && i.uv.x <= debugRegionEnd.x &&
                     i.uv.y >= debugRegionStart.y && i.uv.y <= debugRegionEnd.y)
@@ -47,10 +47,7 @@ Shader "Hidden/HiZ/Debug"
                     half d = SAMPLE_TEXTURE2D_LOD(_DebugHiZTexture, sampler_DebugHiZTexture, i.uv, mip).r;
                     return half4(d.xxx,1);
                 }
-                else
-                {
-                    return debugColor;
-                }
+                return sceneColor;
             }
             ENDHLSL
         }
