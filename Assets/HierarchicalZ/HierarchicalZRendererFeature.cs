@@ -62,11 +62,8 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             _hiZPassResources ??= new HierarchicalZPassResources(colorTextureDisc.width, colorTextureDisc.height, _settings.renderObjects.ToArray(), Camera.main);
             _hiZPassResources.RecreateHiZIfNeeded(colorTextureDisc.width, colorTextureDisc.height);
             _hiZPassResources.UpdateObjects(_settings.renderObjects.ToArray(), Camera.main);
-            if (_settings.debug)
-            {
-                _hiZPassResources.RecreateTempColorIfNeeded(colorTextureDisc);
-                _hiZPassOutput.ReAllocateIfNeeded(colorTextureDisc.width, colorTextureDisc.height);
-            }
+            _hiZPassResources.RecreateTempColorIfNeeded(colorTextureDisc);
+            _hiZPassOutput.ReAllocateIfNeeded(colorTextureDisc.width, colorTextureDisc.height);
 
             // 3. 缓存 kernel
             if (_settings.computeShader && kBuildHiZFirst < 0)
@@ -93,7 +90,7 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
                 var colorTarget = renderingData.cameraData.renderer.cameraColorTargetHandle;
                 cmd.Blit(colorTarget.rt, _hiZPassResources.TempColorTexture);
                 cmd.SetGlobalTexture("_DebugColorInput", _hiZPassResources.TempColorTexture);
-                cmd.SetGlobalTexture("_DebugHiZTexture", _hiZPassResources.HiZTexture);
+                cmd.SetGlobalTexture("_DebugHiZTexture", _hiZPassOutput.HiZPyramid);
                 cmd.SetGlobalVector("_DebugParams", new Vector4(_settings.debugMipLevel, _settings.debugHeightRatio, 0, 0));
                 cmd.SetRenderTarget(colorTarget);
                 cmd.DrawProcedural(Matrix4x4.identity, _settings.debugHiZTextureMaterial, 0, MeshTopology.Triangles, 3, 1);
@@ -126,9 +123,9 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
         // 构建 Hi-Z 金字塔占位接口
         private void BuildHiZPyramid(CommandBuffer cmd, RTHandle cameraDepth)
         {
-            int width = _hiZPassResources.HiZTexture.rt.width;
-            int height = _hiZPassResources.HiZTexture.rt.height;
-            int mipCount = _hiZPassResources.MipCount;
+            int width = _hiZPassOutput.HiZPyramid.rt.width;
+            int height = _hiZPassOutput.HiZPyramid.rt.height;
+            int mipCount = _hiZPassOutput.MipCount;
 
             // 用 Compute 生成 mip0 (摄像机深度 -> R32F)，避免 CopyTexture 跨格式报错
             if (_settings.computeShader && kBuildHiZFirst >= 0)
@@ -139,7 +136,7 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
                 cmd.SetComputeIntParam(_settings.computeShader, kHiZHeightId, height);
                 cmd.SetComputeIntParam(_settings.computeShader, kHiZMipCountId, mipCount);
                 cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZFirst, kSrcDepthTextureId, cameraDepth);                // 深度输入
-                cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZFirst, kDstMipTextureId, _hiZPassResources.HiZTexture, 0);  // 写入 mip0
+                cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZFirst, kDstMipTextureId, _hiZPassOutput.HiZPyramid, 0);  // 写入 mip0
                 cmd.DispatchCompute(_settings.computeShader, kBuildHiZFirst, gx0, gy0, 1);
             }
 
@@ -159,8 +156,8 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
                     cmd.SetComputeIntParam(_settings.computeShader, kHiZWidthId, width);
                     cmd.SetComputeIntParam(_settings.computeShader, kHiZHeightId, height);
                     cmd.SetComputeIntParam(_settings.computeShader, kHiZMipCountId, mipCount);
-                    cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZDown, kSrcMipTextureId, _hiZPassResources.HiZTexture, i - 1);
-                    cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZDown, kDstMipTextureId, _hiZPassResources.HiZTexture, i);
+                    cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZDown, kSrcMipTextureId, _hiZPassOutput.HiZPyramid, i - 1);
+                    cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZDown, kDstMipTextureId, _hiZPassOutput.HiZPyramid, i);
                     cmd.DispatchCompute(_settings.computeShader, kBuildHiZDown, gx, gy, 1);
                 }
             }
@@ -185,6 +182,43 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
         private void DrawVisibleIndirect(CommandBuffer cmd, ComputeShader cs, int kernelTest)
         {
 
+        }
+    }
+
+    class HiZDebugPass : ScriptableRenderPass
+    {
+        private HierarchicalZRenderSettings _settings;
+        private HierarchicalZPassOutput _hiZPassOutput;
+        private HierarchicalZPassResources _hiZPassResources;
+
+        public HiZDebugPass(HierarchicalZRenderSettings settings, HierarchicalZPassResources hiZResources, HierarchicalZPassOutput hiZPassOutput)
+        {
+            _settings = settings;
+            _hiZPassResources = hiZResources;
+            _hiZPassOutput = hiZPassOutput;
+        }
+
+        public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
+        {
+            _hiZPassResources.RecreateTempColorIfNeeded(renderingData.cameraData.cameraTargetDescriptor);
+        }
+
+        public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
+        {
+            var cmd = CommandBufferPool.Get("HiZ Debug Pass");
+            var colorTarget = renderingData.cameraData.renderer.cameraColorTargetHandle;
+            cmd.Blit(colorTarget.rt, _hiZPassResources.TempColorTexture);
+            cmd.SetGlobalTexture("_DebugColorInput", _hiZPassResources.TempColorTexture);
+            cmd.SetGlobalTexture("_DebugHiZTexture", _hiZPassOutput.HiZPyramid);
+            cmd.SetGlobalVector("_DebugParams", new Vector4(_settings.debugMipLevel, _settings.debugHeightRatio, 0, 0));
+            cmd.SetRenderTarget(colorTarget);
+            cmd.DrawProcedural(Matrix4x4.identity, _settings.debugHiZTextureMaterial, 0, MeshTopology.Triangles, 3, 1);
+            context.ExecuteCommandBuffer(cmd);
+            CommandBufferPool.Release(cmd);
+        }
+
+        public override void OnCameraCleanup(CommandBuffer cmd)
+        {
         }
     }
 
