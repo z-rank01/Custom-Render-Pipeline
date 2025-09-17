@@ -20,19 +20,18 @@ public class HierarchicalZRenderSettings
 public class HierarchicalZRendererFeature : ScriptableRendererFeature
 {
     public HierarchicalZRenderSettings settings = new();
+    private HierarchicalZPassOutput hierarchicalZPassOutput = new();
 
     class HiZRenderPass : ScriptableRenderPass
     {
-        private HierarchicalZResources _hiZResources;
+        private HierarchicalZPassResources _hiZPassResources;
         private HierarchicalZRenderSettings _settings;
-
-        private RTHandle tempColorTexture;
+        private HierarchicalZPassOutput _hiZPassOutput;
 
         private static readonly int kSrcMipTextureId = Shader.PropertyToID("_SrcMipTexture");
         private static readonly int kDstMipTextureId = Shader.PropertyToID("_DstMipTexture");
         private static readonly int kSrcMipLevelId = Shader.PropertyToID("_SrcMipLevel");
         private static readonly int kDstMipLevelId = Shader.PropertyToID("_DstMipLevel");
-        // Correct parameter names matching compute shader (_HiZWidth/_HiZHeight/_HiZMipCount)
         private static readonly int kHiZWidthId = Shader.PropertyToID("_HiZWidth");
         private static readonly int kHiZHeightId = Shader.PropertyToID("_HiZHeight");
         private static readonly int kHiZMipCountId = Shader.PropertyToID("_HiZMipCount");
@@ -42,9 +41,10 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
         private int kBuildHiZDown = -1;
         private int kFrustumOcclusionCull = -1;
 
-        public HiZRenderPass(HierarchicalZRenderSettings settings)
+        public HiZRenderPass(HierarchicalZRenderSettings settings, HierarchicalZPassOutput hierarchicalZPassOutput)
         {
             _settings = settings;
+            _hiZPassOutput = hierarchicalZPassOutput;
         }
 
         // This method is called before executing the render pass.
@@ -59,23 +59,22 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
 
             // 2. 初始化或更新资源
             var colorTextureDisc = renderingData.cameraData.cameraTargetDescriptor;
-            _hiZResources ??= new HierarchicalZResources(colorTextureDisc.width, colorTextureDisc.height, _settings.renderObjects.ToArray(), Camera.main);
-            _hiZResources.RecreateHiZIfNeeded(colorTextureDisc.width, colorTextureDisc.height);
-            _hiZResources.UpdateObjects(_settings.renderObjects.ToArray(), Camera.main);
+            _hiZPassResources ??= new HierarchicalZPassResources(colorTextureDisc.width, colorTextureDisc.height, _settings.renderObjects.ToArray(), Camera.main);
+            _hiZPassResources.RecreateHiZIfNeeded(colorTextureDisc.width, colorTextureDisc.height);
+            _hiZPassResources.UpdateObjects(_settings.renderObjects.ToArray(), Camera.main);
             if (_settings.debug)
             {
-                var cameraTargetDescriptor = renderingData.cameraData.cameraTargetDescriptor;
-                cameraTargetDescriptor.depthBufferBits = 0;
-                RenderingUtils.ReAllocateIfNeeded(ref tempColorTexture, cameraTargetDescriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_SceneColor");
+                _hiZPassResources.RecreateTempColorIfNeeded(colorTextureDisc);
+                _hiZPassOutput.ReAllocateIfNeeded(colorTextureDisc.width, colorTextureDisc.height);
             }
 
             // 3. 缓存 kernel
-                if (_settings.computeShader && kBuildHiZFirst < 0)
-                {
-                    kBuildHiZFirst = _settings.computeShader.FindKernel("BuildHiZFirst");
-                    kBuildHiZDown = _settings.computeShader.FindKernel("BuildHiZDown");
-                    kFrustumOcclusionCull = _settings.computeShader.FindKernel("FrustumOcclusionCull");
-                }
+            if (_settings.computeShader && kBuildHiZFirst < 0)
+            {
+                kBuildHiZFirst = _settings.computeShader.FindKernel("BuildHiZFirst");
+                kBuildHiZDown = _settings.computeShader.FindKernel("BuildHiZDown");
+                kFrustumOcclusionCull = _settings.computeShader.FindKernel("FrustumOcclusionCull");
+            }
         }
 
         // Here you can implement the rendering logic.
@@ -92,9 +91,9 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             if (_settings.debug)
             {
                 var colorTarget = renderingData.cameraData.renderer.cameraColorTargetHandle;
-                cmd.Blit(colorTarget.rt, tempColorTexture);
-                cmd.SetGlobalTexture("_DebugColorInput", tempColorTexture);
-                cmd.SetGlobalTexture("_DebugHiZTexture", _hiZResources.HiZTexture);
+                cmd.Blit(colorTarget.rt, _hiZPassResources.TempColorTexture);
+                cmd.SetGlobalTexture("_DebugColorInput", _hiZPassResources.TempColorTexture);
+                cmd.SetGlobalTexture("_DebugHiZTexture", _hiZPassResources.HiZTexture);
                 cmd.SetGlobalVector("_DebugParams", new Vector4(_settings.debugMipLevel, _settings.debugHeightRatio, 0, 0));
                 cmd.SetRenderTarget(colorTarget);
                 cmd.DrawProcedural(Matrix4x4.identity, _settings.debugHiZTextureMaterial, 0, MeshTopology.Triangles, 3, 1);
@@ -127,9 +126,9 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
         // 构建 Hi-Z 金字塔占位接口
         private void BuildHiZPyramid(CommandBuffer cmd, RTHandle cameraDepth)
         {
-            int width = _hiZResources.HiZTexture.rt.width;
-            int height = _hiZResources.HiZTexture.rt.height;
-            int mipCount = _hiZResources.MipCount;
+            int width = _hiZPassResources.HiZTexture.rt.width;
+            int height = _hiZPassResources.HiZTexture.rt.height;
+            int mipCount = _hiZPassResources.MipCount;
 
             // 用 Compute 生成 mip0 (摄像机深度 -> R32F)，避免 CopyTexture 跨格式报错
             if (_settings.computeShader && kBuildHiZFirst >= 0)
@@ -140,7 +139,7 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
                 cmd.SetComputeIntParam(_settings.computeShader, kHiZHeightId, height);
                 cmd.SetComputeIntParam(_settings.computeShader, kHiZMipCountId, mipCount);
                 cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZFirst, kSrcDepthTextureId, cameraDepth);                // 深度输入
-                cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZFirst, kDstMipTextureId, _hiZResources.HiZTexture, 0);  // 写入 mip0
+                cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZFirst, kDstMipTextureId, _hiZPassResources.HiZTexture, 0);  // 写入 mip0
                 cmd.DispatchCompute(_settings.computeShader, kBuildHiZFirst, gx0, gy0, 1);
             }
 
@@ -160,8 +159,8 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
                     cmd.SetComputeIntParam(_settings.computeShader, kHiZWidthId, width);
                     cmd.SetComputeIntParam(_settings.computeShader, kHiZHeightId, height);
                     cmd.SetComputeIntParam(_settings.computeShader, kHiZMipCountId, mipCount);
-                    cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZDown, kSrcMipTextureId, _hiZResources.HiZTexture, i - 1);
-                    cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZDown, kDstMipTextureId, _hiZResources.HiZTexture, i);
+                    cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZDown, kSrcMipTextureId, _hiZPassResources.HiZTexture, i - 1);
+                    cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZDown, kDstMipTextureId, _hiZPassResources.HiZTexture, i);
                     cmd.DispatchCompute(_settings.computeShader, kBuildHiZDown, gx, gy, 1);
                 }
             }
@@ -194,7 +193,8 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
     /// <inheritdoc/>
     public override void Create()
     {
-        m_HiZPass = new HiZRenderPass(settings)
+        hierarchicalZPassOutput ??= new HierarchicalZPassOutput();
+        m_HiZPass = new HiZRenderPass(settings, hierarchicalZPassOutput)
         {
             // need to be after depth prepass while before opaque pass
             renderPassEvent = RenderPassEvent.AfterRenderingOpaques

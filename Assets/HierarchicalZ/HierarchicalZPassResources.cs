@@ -1,8 +1,9 @@
 ﻿using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
-public class HierarchicalZResources : System.IDisposable
+public class HierarchicalZPassResources : System.IDisposable
 {
     // compute buffers
     private ComputeBuffer _aabbCenterBuffer;
@@ -13,7 +14,8 @@ public class HierarchicalZResources : System.IDisposable
     
     // Hierarchical z depth mipmap
     private RTHandle _hiZRenderTexture;
-    
+    private RTHandle _tempColorTexture;
+
     // AABBs and transform matrices
     private Vector3[] _objectCenters;
     private Vector3[] _objectExtents;
@@ -27,6 +29,7 @@ public class HierarchicalZResources : System.IDisposable
     public int ObjectCount => _objectCount;
     public int MipCount => _mipCount;
     public RTHandle HiZTexture => _hiZRenderTexture;
+    public RTHandle TempColorTexture => _tempColorTexture;
     public ComputeBuffer AabbCenterBuffer => _aabbCenterBuffer;
     public ComputeBuffer AabbExtentBuffer => _aabbExtentBuffer;
     public ComputeBuffer ObjectTransformBuffer => _objectTransformBuffer;
@@ -35,7 +38,7 @@ public class HierarchicalZResources : System.IDisposable
     public Matrix4x4[] ObjectToWorldMatrices => _objectToWorldMatrices;
     public Matrix4x4 WorldToCameraMatrix => _worldToCameraMatrices;
     
-    public HierarchicalZResources(int width, int height, Renderer[] renderers, Camera camera)
+    public HierarchicalZPassResources(int width, int height, Renderer[] renderers, Camera camera)
     {
         _objectCount = renderers.Length;
 
@@ -114,6 +117,18 @@ public class HierarchicalZResources : System.IDisposable
         };
         _hiZRenderTexture = RTHandles.Alloc(desc, name: "HiZ_Pyramid");
     }
+    
+    public void RecreateTempColorIfNeeded(RenderTextureDescriptor rtDesc)
+    {
+        if (_tempColorTexture != null &&
+            (_tempColorTexture.rt.width == rtDesc.width && _tempColorTexture.rt.height == rtDesc.height))
+            return;
+
+        RTHandles.Release(_tempColorTexture);
+        var desc = rtDesc;
+        desc.depthBufferBits = 0;
+        RenderingUtils.ReAllocateIfNeeded(ref _tempColorTexture, desc, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "SceneColorTextureCopy");
+    }
 
     #endregion
 
@@ -124,8 +139,8 @@ public class HierarchicalZResources : System.IDisposable
 
         if (count == 0) return;
 
-        _aabbCenterBuffer   = new ComputeBuffer(count, sizeof(float) * 3, ComputeBufferType.Structured);
-        _aabbExtentBuffer   = new ComputeBuffer(count, sizeof(float) * 3, ComputeBufferType.Structured);
+        _aabbCenterBuffer = new ComputeBuffer(count, sizeof(float) * 3, ComputeBufferType.Structured);
+        _aabbExtentBuffer = new ComputeBuffer(count, sizeof(float) * 3, ComputeBufferType.Structured);
         _objectTransformBuffer = new ComputeBuffer(count, sizeof(float) * 16, ComputeBufferType.Structured);
         _visibilityResultBuffer = new ComputeBuffer(count, sizeof(int), ComputeBufferType.Structured);
         _appendBuffer = new ComputeBuffer(count, sizeof(uint), ComputeBufferType.Append);
@@ -166,5 +181,5 @@ public class HierarchicalZResources : System.IDisposable
     }
 
     public void Dispose() => Release();
-    ~HierarchicalZResources() { Release(); }
+    ~HierarchicalZPassResources() { Release(); }
 }
