@@ -8,7 +8,7 @@ AppendStructuredBuffer<uint> _VisibleIndices;
 RWStructuredBuffer<uint> _Args;
 
 // 深度来源 + HiZ 构建
-Texture2D<float>      _SrcDepthTexture;
+Texture2D<float>      _CameraDepthTexture;
 SamplerState          sampler_PointClamp; // 需在 C# 侧默认 point clamp
 
 // 源 mip（只读）与目标 mip（写）
@@ -61,7 +61,7 @@ void BuildHiZFirst(uint3 id:SV_DispatchThreadID)
     uint h = (uint)_HiZHeight;
     if(id.x >= w || id.y >= h) return;
     float2 uv = (id.xy + 0.5) / float2(w,h);
-    float d = _SrcDepthTexture.SampleLevel(sampler_PointClamp, uv, 0);
+    float d = _CameraDepthTexture.SampleLevel(sampler_PointClamp, uv, 0);
     _DstMipTexture[int2(id.xy)] = d;
 }
 
