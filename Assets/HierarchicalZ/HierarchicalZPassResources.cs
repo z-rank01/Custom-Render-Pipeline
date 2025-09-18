@@ -13,8 +13,6 @@ public class HierarchicalZPassResources : System.IDisposable
     private ComputeBuffer _visibilityResultBuffer;   // 每对象一个 int (0/1)
     
     // Hierarchical z depth mipmap
-    private RTHandle _hiZRenderTexture;
-    private RTHandle _tempColorTexture;
 
     // AABBs and transform matrices
     private Vector3[] _objectCenters;
@@ -24,12 +22,8 @@ public class HierarchicalZPassResources : System.IDisposable
     
     // Hi-Z Texture information
     private int _objectCount;
-    private int _mipCount;
 
     public int ObjectCount => _objectCount;
-    public int MipCount => _mipCount;
-    public RTHandle HiZTexture => _hiZRenderTexture;
-    public RTHandle TempColorTexture => _tempColorTexture;
     public ComputeBuffer AabbCenterBuffer => _aabbCenterBuffer;
     public ComputeBuffer AabbExtentBuffer => _aabbExtentBuffer;
     public ComputeBuffer ObjectTransformBuffer => _objectTransformBuffer;
@@ -53,22 +47,11 @@ public class HierarchicalZPassResources : System.IDisposable
             _objectExtents[i] = renderers[i].bounds.extents;
             _objectCenters[i] = renderers[i].bounds.center;
         }
-
-        // 2. 生成贴图与缓冲 (修正 mipCount 计算)
-        _mipCount = Mathf.FloorToInt(Mathf.Log(Mathf.Max(width, height), 2f)) + 1;
-        var desc = new RenderTextureDescriptor(width, height)
-        {
-            enableRandomWrite = true,
-            dimension = TextureDimension.Tex2D,
-            useMipMap = true,
-            autoGenerateMips = false,
-            graphicsFormat = GraphicsFormat.R32_SFloat,
-            mipCount = _mipCount,
-            msaaSamples = 1
-        };
-        _hiZRenderTexture = RTHandles.Alloc(desc, name: "HiZ_Pyramid");
-
+        
+        // 2. 分配或重建 Buffers
         AllocateOrResizeBuffers(_objectCount);
+        
+        // 3. 重新上传 Buffers 数据
         UploadObjectData();
     }
 
@@ -94,40 +77,6 @@ public class HierarchicalZPassResources : System.IDisposable
 
         AllocateOrResizeBuffers(_objectCount);
         UploadObjectData();
-    }
-
-    // 视口尺寸改变时重建 Hi-Z 贴图
-    public void RecreateHiZIfNeeded(int width, int height)
-    {
-        if (_hiZRenderTexture != null &&
-            (_hiZRenderTexture.rt.width == width && _hiZRenderTexture.rt.height == height))
-            return;
-
-        RTHandles.Release(_hiZRenderTexture);
-        _mipCount = Mathf.FloorToInt(Mathf.Log(Mathf.Max(width, height), 2f)) + 1;
-        var desc = new RenderTextureDescriptor(width, height)
-        {
-            enableRandomWrite = true,
-            dimension = TextureDimension.Tex2D,
-            useMipMap = true,
-            autoGenerateMips = false,
-            graphicsFormat = GraphicsFormat.R32_SFloat,
-            mipCount = _mipCount,
-            msaaSamples = 1
-        };
-        _hiZRenderTexture = RTHandles.Alloc(desc, name: "HiZ_Pyramid");
-    }
-    
-    public void RecreateTempColorIfNeeded(RenderTextureDescriptor rtDesc)
-    {
-        if (_tempColorTexture != null &&
-            (_tempColorTexture.rt.width == rtDesc.width && _tempColorTexture.rt.height == rtDesc.height))
-            return;
-
-        RTHandles.Release(_tempColorTexture);
-        var desc = rtDesc;
-        desc.depthBufferBits = 0;
-        RenderingUtils.ReAllocateIfNeeded(ref _tempColorTexture, desc, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "SceneColorTextureCopy");
     }
 
     #endregion
@@ -173,11 +122,6 @@ public class HierarchicalZPassResources : System.IDisposable
     {
         // release compute buffers
         ReleaseBuffers();
-        
-        // release hiz texture
-        if (_hiZRenderTexture == null) return;
-        RTHandles.Release(_hiZRenderTexture);
-        _hiZRenderTexture = null;
     }
 
     public void Dispose() => Release();

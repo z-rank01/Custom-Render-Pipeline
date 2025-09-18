@@ -49,11 +49,6 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             _hiZPassOutput = hierarchicalZPassOutput;
         }
 
-        // This method is called before executing the render pass.
-        // It can be used to configure render targets and their clear state. Also to create temporary render target textures.
-        // When empty this render pass will render to the active camera render target.
-        // You should never call CommandBuffer.SetRenderTarget. Instead call <c>ConfigureTarget</c> and <c>ConfigureClear</c>.
-        // The render pipeline will ensure target setup and clearing happens in a performant manner.
         public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
         {
             // 1. 收集场景内物体
@@ -65,9 +60,7 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             var height = colorTextureDisc.height;
             var cam = renderingData.cameraData.camera;
             _hiZPassResources ??= new HierarchicalZPassResources(width, height, _settings.renderObjects.ToArray(), cam);
-            _hiZPassResources.RecreateHiZIfNeeded(width, height);
             _hiZPassResources.UpdateObjects(_settings.renderObjects.ToArray(), cam);
-            // _hiZPassResources.RecreateTempColorIfNeeded(colorTextureDisc);
             _hiZPassOutput.ReAllocateIfNeeded(width, height, () =>
             {
                 var mipCount = Mathf.FloorToInt(Mathf.Log(Mathf.Max(width, height), 2f)) + 1;
@@ -91,33 +84,18 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
                 kBuildHiZDown = _settings.computeShader.FindKernel("BuildHiZDown");
                 kFrustumOcclusionCull = _settings.computeShader.FindKernel("FrustumOcclusionCull");
             }
-
-            // 4. 使用 Depth Prepass 的拷贝（需要显式声明）
-            // ConfigureInput(ScriptableRenderPassInput.Depth);
         }
-
-        // Here you can implement the rendering logic.
-        // Use <c>ScriptableRenderContext</c> to issue drawing commands or execute command buffers
-        // https://docs.unity3d.com/ScriptReference/Rendering.ScriptableRenderContext.html
-        // You don't have to call ScriptableRenderContext.submit, the render pipeline will call it at specific points in the pipeline.
+        
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
             var cmd = CommandBufferPool.Get("Hierarchical Z Pass");
 
             // 1. Generate Hi-Z depth mip map
-            var cameraDepthRT = renderingData.cameraData.renderer.cameraDepthTargetHandle;
-            BuildHiZPyramid(cmd, cameraDepthRT);
-            // 1.1 Debug output hi-z texture
-            // if (_settings.debug)
-            // {
-            //     var colorTarget = renderingData.cameraData.renderer.cameraColorTargetHandle;
-            //     cmd.Blit(colorTarget.rt, _hiZPassResources.TempColorTexture);
-            //     cmd.SetGlobalTexture("_DebugColorInput", _hiZPassResources.TempColorTexture);
-            //     cmd.SetGlobalTexture("_DebugHiZTexture", _hiZPassOutput.HiZPyramid);
-            //     cmd.SetGlobalVector("_DebugParams", new Vector4(_settings.debugMipLevel, _settings.debugHeightRatio, 0, 0));
-            //     cmd.SetRenderTarget(colorTarget);
-            //     cmd.DrawProcedural(Matrix4x4.identity, _settings.debugHiZTextureMaterial, 0, MeshTopology.Triangles, 3, 1);
-            // }
+            
+            // tips: prepass 之后必须使用 Global Texture 作为 Compute Shader 的输入
+            // 不能直接使用 renderer.cameraDepthTargetHandle，因为 URP 会在 depth prepass 之后进行 Clear 操作
+            var depthTexture = Shader.GetGlobalTexture("_CameraDepthTexture");
+            BuildHiZPyramid(cmd, depthTexture);
             context.ExecuteCommandBuffer(cmd);
             cmd.Clear();
 
@@ -144,7 +122,7 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
         }
 
         // 构建 Hi-Z 金字塔占位接口
-        private void BuildHiZPyramid(CommandBuffer cmd, RTHandle cameraDepth)
+        private void BuildHiZPyramid(CommandBuffer cmd, Texture cameraDepth)
         {
             int width = _hiZPassOutput.HiZPyramid.rt.width;
             int height = _hiZPassOutput.HiZPyramid.rt.height;
@@ -284,9 +262,7 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             m_HiZDebugPass = hiZDebugPass;
         }
     }
-
-    // Here you can inject one or multiple render passes in the renderer.
-    // This method is called when setting up the renderer once per-camera.
+    
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
         renderer.EnqueuePass(m_HiZPass);
