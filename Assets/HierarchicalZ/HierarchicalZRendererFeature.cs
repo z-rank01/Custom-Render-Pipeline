@@ -309,6 +309,7 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
 
         public override void OnCameraCleanup(CommandBuffer cmd)
         {
+            _hiZPassOutput.ReleaseBuffers();
         }
         
         private void DebugHiZTexture(CommandBuffer cmd, RTHandle colorTarget)
