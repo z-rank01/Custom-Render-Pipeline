@@ -18,6 +18,8 @@ MonoBehaviour:
     - {fileID: 0}
     - {fileID: 0}
     - {fileID: 0}
+    - {fileID: 0}
+    - {fileID: 0}
     computeShader: {fileID: 7200000, guid: 84806cf8c26cf0f4c86110e673b9709b, type: 3}
     debug: 1
     debugHiZTextureMaterial: {fileID: 2100000, guid: f961cddc0f087b545ba7b250c10b4b43,
