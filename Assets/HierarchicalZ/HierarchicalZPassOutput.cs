@@ -20,8 +20,6 @@ class HierarchicalZPassOutput
 
     public HierarchicalZPassOutput()
     {
-        ReAllocateIfNeeded(1, 1, () => null); // 初始分配一个 1x1 的贴图
-        AllocateOrResizeBuffers(0);
     }
 
     /// <summary>
@@ -61,7 +59,7 @@ class HierarchicalZPassOutput
         if (VisibleResultBuffer == null || VisibleResultBuffer.count < objectCount)
         {
             VisibleResultBuffer?.Release();
-            VisibleResultBuffer = new ComputeBuffer(objectCount, sizeof(int), ComputeBufferType.Structured);
+            VisibleResultBuffer = new ComputeBuffer(objectCount, sizeof(int), ComputeBufferType.IndirectArguments);
         }
         
         if (AppendBuffer == null || AppendBuffer.count < objectCount)
