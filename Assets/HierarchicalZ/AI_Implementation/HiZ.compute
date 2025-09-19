@@ -64,7 +64,7 @@ void BuildHiZDown(uint3 id:SV_DispatchThreadID)
     int2 basePix = dst * 2; // 对应上一级左上 texel
 
     // 线性深度下使用“最小值金字塔”，保存该块内最近的遮挡深度
-    float m = 1.0;
+    float m = 0.0;
     [unroll]
     for (int oy = 0; oy < 2; oy++)
     {
@@ -76,7 +76,7 @@ void BuildHiZDown(uint3 id:SV_DispatchThreadID)
             sp.x = min(sp.x, srcW - 1);
             sp.y = min(sp.y, srcH - 1);
             float v = _SrcMipTexture.Load(int3(sp, 0)); // 子资源中的 mip0（即上一层真实 mip）
-            m = min(m, v);
+            m = max(m, v);
         }
     }
     _DstMipTexture[dst] = m;
@@ -130,7 +130,8 @@ void FrustumOcclusionCull(uint3 id:SV_DispatchThreadID)
     // 第一步：视锥体剔除
     if (!FrustumTestAABB(center, extent)) return;
     
-    // 计算AABB的屏幕空间包围与最近线性深度
+    // calculate nearest linear depth of the object's AABB corners
+    // calculate screen-space AABB of the object's AABB corners (minUV, maxUV)
     float2 minUV = float2(1e9, 1e9);
     float2 maxUV = float2(-1e9, -1e9);
     float objectNearLinear = 1.0;
@@ -148,7 +149,7 @@ void FrustumOcclusionCull(uint3 id:SV_DispatchThreadID)
         float raw = clip.z / clip.w;
         objectNearLinear = min(objectNearLinear, Linear01Depth(raw));
     }
-    // 屏幕裁剪
+    // viewport clip
     minUV = clamp(minUV, 0.0, 1.0);
     maxUV = clamp(maxUV, 0.0, 1.0);
     if (maxUV.x <= minUV.x || maxUV.y <= minUV.y) return; // 完全在屏幕外

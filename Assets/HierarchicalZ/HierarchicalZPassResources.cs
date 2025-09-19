@@ -69,9 +69,7 @@ public class HierarchicalZPassResources : System.IDisposable
     private void AllocateOrResizeBuffers(int count)
     {
         ReleaseBuffers();
-
         if (count == 0) return;
-
         _aabbCenterBuffer = new ComputeBuffer(count, sizeof(float) * 3, ComputeBufferType.Structured);
         _aabbExtentBuffer = new ComputeBuffer(count, sizeof(float) * 3, ComputeBufferType.Structured);
     }
