@@ -77,7 +77,7 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
                 return RTHandles.Alloc(desc, name: "_HiZPyramid");
             });
 
-            // 3. 缓存 kernel
+            // 3. 缓存 kernel 索引
             if (_settings.computeShader && kBuildHiZFirst < 0)
             {
                 kBuildHiZFirst = _settings.computeShader.FindKernel("BuildHiZFirst");
@@ -100,8 +100,12 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             cmd.Clear();
 
             // 2. Culling
+            // DispatchOcclusionTest(cmd, renderingData);  // 添加这一行调用遮挡剔除
+            // context.ExecuteCommandBuffer(cmd);
+            // cmd.Clear();
 
             // 3. DrawIndirect
+            // 如果需要在此处绘制，可以添加DrawVisibleIndirect(cmd)的调用
 
             CommandBufferPool.Release(cmd);
         }
@@ -163,24 +167,67 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
                 }
             }
 #if UNITY_EDITOR
-            Debug.Log($"Build HiZ Texture (Compute Path:{_settings.computeShader != null}): {width}x{height}, MipCount: {mipCount}");
+            Debug.Log($"Build HiZ Texture (Compute Path:{_settings.computeShader is not null}): {width}x{height}, MipCount: {mipCount}");
 #endif
         }
 
         // 遮挡测试占位接口
-        private void DispatchOcclusionTest(CommandBuffer cmd, ComputeShader cs, int kernelTest)
+        private void DispatchOcclusionTest(CommandBuffer cmd, RenderingData renderingData)
         {
-            // TODO:
-            // 传入:
-            //  - AABB center / extent
-            //  - 对象矩阵或已转换的裁剪空间包围盒
-            //  - Hi-Z 贴图 (所有 mip)
-            // 输出:
-            //  - _visibilityResultBuffer 或 Append 列表
+            if (_settings.computeShader is null || kFrustumOcclusionCull < 0 || _hiZPassResources.ObjectCount <= 0)
+                return;
+            
+            // 获取相机矩阵
+            var camera = renderingData.cameraData.camera;
+            Matrix4x4 viewMatrix = camera.worldToCameraMatrix;
+            Matrix4x4 projMatrix = GL.GetGPUProjectionMatrix(camera.projectionMatrix, false);
+            Matrix4x4 vpMatrix = projMatrix * viewMatrix;
+            
+            // 重置Append缓冲计数
+            _hiZPassResources.AppendBuffer.SetCounterValue(0);
+            
+            // 设置计算着色器参数
+            var shader = _settings.computeShader;
+            
+            // 绑定矩阵和屏幕参数
+            cmd.SetComputeMatrixParam(shader, "_VP", vpMatrix);
+            cmd.SetComputeMatrixParam(shader, "_View", viewMatrix);
+            cmd.SetComputeMatrixParam(shader, "_Proj", projMatrix);
+            cmd.SetComputeVectorParam(shader, "_ScreenParams", new Vector4(
+                Screen.width, Screen.height, 1.0f / Screen.width, 1.0f / Screen.height));
+            
+            // 绑定物体数据
+            cmd.SetComputeIntParam(shader, "_InstanceCount", _hiZPassResources.ObjectCount);
+            cmd.SetComputeIntParam(shader, "_HiZMipCount", _hiZPassOutput.MipCount);
+            cmd.SetComputeBufferParam(shader, kFrustumOcclusionCull, "_BoundsCenter", _hiZPassResources.AabbCenterBuffer);
+            cmd.SetComputeBufferParam(shader, kFrustumOcclusionCull, "_BoundsExtent", _hiZPassResources.AabbExtentBuffer);
+            cmd.SetComputeBufferParam(shader, kFrustumOcclusionCull, "_VisibleIndices", _hiZPassResources.AppendBuffer);
+            
+            // 绑定HiZ贴图
+            cmd.SetComputeTextureParam(shader, kFrustumOcclusionCull, "_HiZSampleTex", _hiZPassOutput.HiZPyramid);
+            
+            // 如果使用间接绘制，还需要绑定绘制参数缓冲区
+            // cmd.SetComputeBufferParam(shader, kFrustumOcclusionCull, "_Args", _hiZPassResources.ArgsBuffer);
+            
+            // 计算线程组数量并调度
+            int threadGroupsX = (_hiZPassResources.ObjectCount + 63) / 64; // 每组64个线程
+            cmd.DispatchCompute(shader, kFrustumOcclusionCull, threadGroupsX, 1, 1);
+            
+            // 可选：拷贝AppendBuffer内容到可见性结果缓冲区，用于后续处理
+            // 注意：如果需要知道有多少物体可见，需要获取AppendBuffer的计数器值
+            // cmd.CopyCounterValue(_hiZPassResources.AppendBuffer, _hiZPassResources.VisibleCountBuffer, 0);
+            
+            // 调试输出
+#if UNITY_EDITOR
+            if (_settings.debug)
+            {
+                cmd.SetGlobalBuffer("_DebugVisibleIndices", _hiZPassResources.AppendBuffer);
+            }
+#endif
         }
 
         // 间接绘制可见物体
-        private void DrawVisibleIndirect(CommandBuffer cmd, ComputeShader cs, int kernelTest)
+        private void DrawVisibleIndirect(CommandBuffer cmd)
         {
 
         }
