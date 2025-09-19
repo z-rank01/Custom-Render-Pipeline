@@ -314,12 +314,10 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             // get visible buffer result
             var result = new uint[_hiZPassOutput.AppendBuffer.count];
             _hiZPassOutput.AppendBuffer.GetData(result);
-            string msg = "Visible Object Indices: ";
             foreach (var index in result)
             {
                 var obj = _settings.renderObjects[(int)index];
                 Debug.Log($"Visible Object: {obj.name} (Index: {index})");
-                msg += index + ", ";
             }
         }
     }

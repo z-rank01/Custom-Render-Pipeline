@@ -8,19 +8,8 @@ class HierarchicalZPassOutput
     public RTHandle HiZPyramid { get; private set; }
     public ComputeBuffer VisibleResultBuffer { get; private set; }
     public ComputeBuffer AppendBuffer { get; private set; }
-    public int MipCount
-    {
-        get
-        {
-            if (HiZPyramid == null) throw new System.InvalidOperationException("HiZ Pyramid not allocated.");
-            return HiZPyramid.rt.mipmapCount;
-        }
-        private set { }
-    }
+    public int MipCount => HiZPyramid == null ? throw new System.InvalidOperationException("HiZ Pyramid not allocated.") : HiZPyramid.rt.mipmapCount;
 
-    public HierarchicalZPassOutput()
-    {
-    }
 
     /// <summary>
     /// 根据需要重新分配 Hi-Z 金字塔贴图
