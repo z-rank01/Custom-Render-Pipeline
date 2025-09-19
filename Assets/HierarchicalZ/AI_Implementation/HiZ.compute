@@ -24,6 +24,7 @@ cbuffer Params
     float4x4 _View;
     float4x4 _Proj;
     float4 _ScreenParams; // w,h,1/w,1/h (原始分辨率)
+    float4 _ZBufferParams; // Unity 全局深度参数，支持正/反向Z的线性化
     int _InstanceCount;
     int _SrcMipLevel;
     int _DstMipLevel;
@@ -62,7 +63,8 @@ void BuildHiZDown(uint3 id:SV_DispatchThreadID)
     int2 dst = int2(id.xy);
     int2 basePix = dst * 2; // 对应上一级左上 texel
 
-    float m = 0.0; // (如果使用最小深度金字塔可改成 1.0 并用 min)
+    // 线性深度下使用“最小值金字塔”，保存该块内最近的遮挡深度
+    float m = 1.0;
     [unroll]
     for (int oy = 0; oy < 2; oy++)
     {
@@ -74,7 +76,7 @@ void BuildHiZDown(uint3 id:SV_DispatchThreadID)
             sp.x = min(sp.x, srcW - 1);
             sp.y = min(sp.y, srcH - 1);
             float v = _SrcMipTexture.Load(int3(sp, 0)); // 子资源中的 mip0（即上一层真实 mip）
-            m = max(m, v);
+            m = min(m, v);
         }
     }
     _DstMipTexture[dst] = m;
@@ -100,11 +102,19 @@ bool FrustumTestAABB(float3 center, float3 extent)
     return false;
 }
 
-// 将世界空间位置转换为标准化深度值[0,1]
-float ProjectDepth01(float3 worldPos)
+// 将硬件深度值(0..1，可能是反向Z)线性化为[0..1]，0=near, 1=far
+float Linear01Depth(float z)
+{
+    // 与 Unity 的 Linear01Depth 等价，_ZBufferParams 由 C# 侧传入
+    return rcp(_ZBufferParams.x * z + _ZBufferParams.y);
+}
+
+// 将世界空间位置转换为线性化深度[0,1] (0=near,1=far)
+float ProjectLinearDepth01(float3 worldPos)
 {
     float4 clip = mul(_VP, float4(worldPos, 1));
-    return clip.z / clip.w;
+    float raw = clip.z / clip.w;          // 与相机深度纹理相同的非线性深度
+    return Linear01Depth(raw);             // 统一线性深度到[0,1]
 }
 
 // 视锥 + 遮挡剔除
@@ -112,7 +122,7 @@ float ProjectDepth01(float3 worldPos)
 void FrustumOcclusionCull(uint3 id:SV_DispatchThreadID)
 {
     uint index = id.x;
-    if (index >= _InstanceCount) return;
+    if (index >= (uint)_InstanceCount) return;
     
     float3 center = _BoundsCenter[index];
     float3 extent = _BoundsExtent[index];
@@ -120,30 +130,46 @@ void FrustumOcclusionCull(uint3 id:SV_DispatchThreadID)
     // 第一步：视锥体剔除
     if (!FrustumTestAABB(center, extent)) return;
     
-    // aabb to ndc space (uv)
-    float4 clipPos = mul(_VP, float4(center, 1));
-    float2 ndc = clipPos.xy / clipPos.w;
-    float2 uv = ndc * 0.5 + 0.5; // 转换到[0,1]UV空间
-    if (uv.x < 0 || uv.x > 1 || uv.y < 0 || uv.y > 1) return;
-    
-    // get object front-face depth
-    float3 viewDir = normalize(center - _View._m03_m13_m23); // 从相机到物体中心的方向
-    float3 frontPoint = center - extent * sign(viewDir); // 最接近相机的AABB点
-    float objectNearDepth = ProjectDepth01(frontPoint);
-    
-    // calculate mip level
-    float screenSize = length(extent) / clipPos.w; // approximate projected size
-    float mipLevel = log2(max(1.0, screenSize * min(_ScreenParams.x, _ScreenParams.y)));
+    // 计算AABB的屏幕空间包围与最近线性深度
+    float2 minUV = float2(1e9, 1e9);
+    float2 maxUV = float2(-1e9, -1e9);
+    float objectNearLinear = 1.0;
+    [unroll]
+    for (int i = 0; i < 8; i++)
+    {
+        float3 corner = center + extent * float3((i & 1) ? 1 : -1, (i & 2) ? 1 : -1, (i & 4) ? 1 : -1);
+        float4 clip = mul(_VP, float4(corner, 1));
+        // 丢弃完全在投影后背面的点，避免 w<=0 造成颠倒
+        if (clip.w <= 0) continue;
+        float2 ndc = clip.xy / clip.w;
+        float2 uvCorner = ndc * 0.5 + 0.5;
+        minUV = min(minUV, uvCorner);
+        maxUV = max(maxUV, uvCorner);
+        float raw = clip.z / clip.w;
+        objectNearLinear = min(objectNearLinear, Linear01Depth(raw));
+    }
+    // 屏幕裁剪
+    minUV = clamp(minUV, 0.0, 1.0);
+    maxUV = clamp(maxUV, 0.0, 1.0);
+    if (maxUV.x <= minUV.x || maxUV.y <= minUV.y) return; // 完全在屏幕外
+
+    // 根据屏幕AABB选择Mip等级
+    float2 hizSize = float2(_HiZWidth, _HiZHeight);
+    float2 rectPx = (maxUV - minUV) * hizSize;
+    float maxDim = max(rectPx.x, rectPx.y);
+    float mipLevel = floor(log2(max(1.0, maxDim)));
     mipLevel = clamp(mipLevel, 0, _HiZMipCount - 1);
-    
-    // sample HiZ depth
-    float hiZDepth = _HiZSampleTex.SampleLevel(sampler_PointClamp, uv, mipLevel);
-    
-    // occlusion test
-    const float depthBias = 0.001;
-    if (hiZDepth < objectNearDepth - depthBias) return;
+
+    // 采样该区域中心处的Hi-Z最小深度（线性）
+    float2 uvCenter = 0.5 * (minUV + maxUV);
+    float hiZLinear = _HiZSampleTex.SampleLevel(sampler_PointClamp, uvCenter, mipLevel);
+    hiZLinear = Linear01Depth(hiZLinear);
+
+    // 遮挡判断（Hi-Z存的是“最近遮挡者”的线性深度，所以 hiZ + bias < objectNear => 被遮挡）
+    const float depthBias = 1e-3;
+    if (hiZLinear + depthBias < objectNearLinear) return;
     _VisibleIndices.Append(index);
-    
+
     // 更新间接绘制参数计数（原子操作）
     // 这是可选的，如果在C#端已经设置了这部分逻辑，可以移除
     //InterlockedAdd(_Args[1], 1);

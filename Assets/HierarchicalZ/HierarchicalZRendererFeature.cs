@@ -38,6 +38,7 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
         private static readonly int kHiZMipCountId = Shader.PropertyToID("_HiZMipCount");
         private static readonly int kSrcDepthTextureId = Shader.PropertyToID("_SrcDepthTexture");
         private static readonly int kCameraDepthTextureId = Shader.PropertyToID("_CameraDepthTexture");
+        private static readonly int kZBufferParamsId = Shader.PropertyToID("_ZBufferParams");
         // Kernels
         private int kBuildHiZFirst = -1;
         private int kBuildHiZDown = -1;
@@ -114,6 +115,8 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
         // Cleanup any allocated resources that were created during the execution of this render pass.
         public override void OnCameraCleanup(CommandBuffer cmd)
         {
+            _hiZPassResources.Dispose();
+            _hiZPassResources = null;
         }
 
         // 收集场景内物体
@@ -149,6 +152,9 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
                 cmd.SetComputeIntParam(_settings.computeShader, kHiZWidthId, width);
                 cmd.SetComputeIntParam(_settings.computeShader, kHiZHeightId, height);
                 cmd.SetComputeIntParam(_settings.computeShader, kHiZMipCountId, mipCount);
+                // 传入深度线性化参数（支持正/反向Z）
+                var zbuf = Shader.GetGlobalVector(kZBufferParamsId);
+                cmd.SetComputeVectorParam(_settings.computeShader, "_ZBufferParams", zbuf);
                 cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZFirst, kCameraDepthTextureId, cameraDepth); // 深度输入
                 cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZFirst, kDstMipTextureId, _hiZPassOutput.HiZPyramid, 0);  // 写入 mip0
                 cmd.DispatchCompute(_settings.computeShader, kBuildHiZFirst, gx0, gy0, 1);
@@ -204,6 +210,12 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             cmd.SetComputeMatrixParam(shader, "_Proj", projMatrix);
             cmd.SetComputeVectorParam(shader, "_ScreenParams", new Vector4(
                 Screen.width, Screen.height, 1.0f / Screen.width, 1.0f / Screen.height));
+            // 绑定深度线性化参数（Compute 端需要）
+            var zparams = Shader.GetGlobalVector(kZBufferParamsId);
+            cmd.SetComputeVectorParam(shader, "_ZBufferParams", zparams);
+            // 绑定Hi-Z尺寸参数
+            cmd.SetComputeIntParam(shader, kHiZWidthId, _hiZPassOutput.HiZPyramid.rt.width);
+            cmd.SetComputeIntParam(shader, kHiZHeightId, _hiZPassOutput.HiZPyramid.rt.height);
             
             // 绑定物体数据
             cmd.SetComputeIntParam(shader, "_InstanceCount", _hiZPassResources.ObjectCount);
@@ -316,6 +328,11 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             _hiZPassOutput.AppendBuffer.GetData(result);
             foreach (var index in result)
             {
+                if (index >= _settings.renderObjects.Count)
+                {
+                    Debug.LogWarning($"Index out of range: {index}");
+                    continue;
+                }
                 var obj = _settings.renderObjects[(int)index];
                 Debug.Log($"Visible Object: {obj.name} (Index: {index})");
             }
