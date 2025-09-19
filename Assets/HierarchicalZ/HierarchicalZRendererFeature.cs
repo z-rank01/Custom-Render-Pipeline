@@ -36,9 +36,17 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
         private static readonly int kHiZWidthId = Shader.PropertyToID("_HiZWidth");
         private static readonly int kHiZHeightId = Shader.PropertyToID("_HiZHeight");
         private static readonly int kHiZMipCountId = Shader.PropertyToID("_HiZMipCount");
-        private static readonly int kSrcDepthTextureId = Shader.PropertyToID("_SrcDepthTexture");
         private static readonly int kCameraDepthTextureId = Shader.PropertyToID("_CameraDepthTexture");
         private static readonly int kZBufferParamsId = Shader.PropertyToID("_ZBufferParams");
+        private static readonly int kVpTransformId = Shader.PropertyToID("_VP");
+        private static readonly int kViewTransformId = Shader.PropertyToID("_View");
+        private static readonly int kProjTransformId = Shader.PropertyToID("_Proj");
+        private static readonly int kScreenParamsId = Shader.PropertyToID("_ScreenParams");
+        private static readonly int kInstanceCountId = Shader.PropertyToID("_InstanceCount");
+        private static readonly int kBoundsCenterId = Shader.PropertyToID("_BoundsCenter");
+        private static readonly int kBoundsExtentId = Shader.PropertyToID("_BoundsExtent");
+        private static readonly int kVisibleIndicesId = Shader.PropertyToID("_VisibleIndices");
+        private static readonly int kHiZSampleTexId = Shader.PropertyToID("_HiZSampleTex");
         // Kernels
         private int kBuildHiZFirst = -1;
         private int kBuildHiZDown = -1;
@@ -59,9 +67,7 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             var colorTextureDisc = renderingData.cameraData.cameraTargetDescriptor;
             var width = colorTextureDisc.width;
             var height = colorTextureDisc.height;
-            var cam = renderingData.cameraData.camera;
-            _hiZPassResources ??= new HierarchicalZPassResources(width, height, _settings.renderObjects.ToArray(), cam);
-            _hiZPassResources.UpdateObjects(_settings.renderObjects.ToArray(), cam);
+            _hiZPassResources = new HierarchicalZPassResources(_settings.renderObjects.ToArray());
             _hiZPassOutput.AllocateOrResizeBuffers(_hiZPassResources.ObjectCount);
             _hiZPassOutput.ReAllocateIfNeeded(width, height, () =>
             {
@@ -152,9 +158,6 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
                 cmd.SetComputeIntParam(_settings.computeShader, kHiZWidthId, width);
                 cmd.SetComputeIntParam(_settings.computeShader, kHiZHeightId, height);
                 cmd.SetComputeIntParam(_settings.computeShader, kHiZMipCountId, mipCount);
-                // 传入深度线性化参数（支持正/反向Z）
-                var zbuf = Shader.GetGlobalVector(kZBufferParamsId);
-                cmd.SetComputeVectorParam(_settings.computeShader, "_ZBufferParams", zbuf);
                 cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZFirst, kCameraDepthTextureId, cameraDepth); // 深度输入
                 cmd.SetComputeTextureParam(_settings.computeShader, kBuildHiZFirst, kDstMipTextureId, _hiZPassOutput.HiZPyramid, 0);  // 写入 mip0
                 cmd.DispatchCompute(_settings.computeShader, kBuildHiZFirst, gx0, gy0, 1);
@@ -205,27 +208,26 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             var shader = _settings.computeShader;
             
             // 绑定矩阵和屏幕参数
-            cmd.SetComputeMatrixParam(shader, "_VP", vpMatrix);
-            cmd.SetComputeMatrixParam(shader, "_View", viewMatrix);
-            cmd.SetComputeMatrixParam(shader, "_Proj", projMatrix);
-            cmd.SetComputeVectorParam(shader, "_ScreenParams", new Vector4(
+            cmd.SetComputeMatrixParam(shader, kVpTransformId, vpMatrix);
+            cmd.SetComputeMatrixParam(shader, kViewTransformId, viewMatrix);
+            cmd.SetComputeMatrixParam(shader, kProjTransformId, projMatrix);
+            cmd.SetComputeVectorParam(shader, kScreenParamsId, new Vector4(
                 Screen.width, Screen.height, 1.0f / Screen.width, 1.0f / Screen.height));
-            // 绑定深度线性化参数（Compute 端需要）
-            var zparams = Shader.GetGlobalVector(kZBufferParamsId);
-            cmd.SetComputeVectorParam(shader, "_ZBufferParams", zparams);
-            // 绑定Hi-Z尺寸参数
+            
+            var zParams = Shader.GetGlobalVector(kZBufferParamsId);
+            cmd.SetComputeVectorParam(shader, kZBufferParamsId, zParams);
+
             cmd.SetComputeIntParam(shader, kHiZWidthId, _hiZPassOutput.HiZPyramid.rt.width);
             cmd.SetComputeIntParam(shader, kHiZHeightId, _hiZPassOutput.HiZPyramid.rt.height);
-            
-            // 绑定物体数据
-            cmd.SetComputeIntParam(shader, "_InstanceCount", _hiZPassResources.ObjectCount);
-            cmd.SetComputeIntParam(shader, "_HiZMipCount", _hiZPassOutput.MipCount);
-            cmd.SetComputeBufferParam(shader, kFrustumOcclusionCull, "_BoundsCenter", _hiZPassResources.AabbCenterBuffer);
-            cmd.SetComputeBufferParam(shader, kFrustumOcclusionCull, "_BoundsExtent", _hiZPassResources.AabbExtentBuffer);
-            cmd.SetComputeBufferParam(shader, kFrustumOcclusionCull, "_VisibleIndices", _hiZPassOutput.AppendBuffer);
+
+            cmd.SetComputeIntParam(shader, kInstanceCountId, _hiZPassResources.ObjectCount);
+            cmd.SetComputeIntParam(shader, kHiZMipCountId, _hiZPassOutput.MipCount);
+            cmd.SetComputeBufferParam(shader, kFrustumOcclusionCull, kBoundsCenterId, _hiZPassResources.AabbCenterBuffer);
+            cmd.SetComputeBufferParam(shader, kFrustumOcclusionCull, kBoundsExtentId, _hiZPassResources.AabbExtentBuffer);
+            cmd.SetComputeBufferParam(shader, kFrustumOcclusionCull, kVisibleIndicesId, _hiZPassOutput.AppendBuffer);
             
             // 绑定HiZ贴图
-            cmd.SetComputeTextureParam(shader, kFrustumOcclusionCull, "_HiZSampleTex", _hiZPassOutput.HiZPyramid);
+            cmd.SetComputeTextureParam(shader, kFrustumOcclusionCull, kHiZSampleTexId, _hiZPassOutput.HiZPyramid);
             
             // 如果使用间接绘制，还需要绑定绘制参数缓冲区
             // cmd.SetComputeBufferParam(shader, kFrustumOcclusionCull, "_Args", _hiZPassResources.ArgsBuffer);
@@ -236,7 +238,7 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             
             // 可选：拷贝AppendBuffer内容到可见性结果缓冲区，用于后续处理
             // 注意：如果需要知道有多少物体可见，需要获取AppendBuffer的计数器值
-            cmd.CopyCounterValue(_hiZPassOutput.AppendBuffer, _hiZPassOutput.VisibleResultBuffer, 0);
+            // cmd.CopyCounterValue(_hiZPassOutput.AppendBuffer, _hiZPassOutput.VisibleResultBuffer, 0);
             
             // 调试输出
 #if UNITY_EDITOR
