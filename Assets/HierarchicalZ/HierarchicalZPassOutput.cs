@@ -21,9 +21,16 @@ class HierarchicalZPassOutput
         ReAllocateIfNeeded(1, 1, () => { return null; }); // 初始分配一个 1x1 的贴图
     }
 
+    /// <summary>
+    /// 根据需要重新分配 Hi-Z 金字塔贴图
+    /// </summary>
+    /// <param name="width">RT 长</param>
+    /// <param name="height">RT 高</param>
+    /// <param name="createFunc">RT 创建方法。此方法强制在 UPR 管线的正确时机创建，防止不断创建导致内存泄露</param>
+    /// <exception cref="ArgumentNullException">创建方法为空</exception>
     public void ReAllocateIfNeeded(int width, int height, Func<RTHandle> createFunc)
     {
-        if (createFunc == null) throw new ArgumentNullException("createFunc is null.");
+        if (createFunc == null) throw new ArgumentNullException($"{nameof(createFunc)} is null.");
         // 如果已经存在且尺寸匹配则无需重新创建
         bool needsReallocate = HiZPyramid == null || HiZPyramid.rt.width != width || HiZPyramid.rt.height != height;
         if (!needsReallocate)
