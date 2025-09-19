@@ -101,9 +101,9 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             cmd.Clear();
 
             // 2. Culling
-            // DispatchOcclusionTest(cmd, renderingData);  // 添加这一行调用遮挡剔除
-            // context.ExecuteCommandBuffer(cmd);
-            // cmd.Clear();
+            DispatchOcclusionTest(cmd, renderingData);  // 添加这一行调用遮挡剔除
+            context.ExecuteCommandBuffer(cmd);
+            cmd.Clear();
 
             // 3. DrawIndirect
             // 如果需要在此处绘制，可以添加DrawVisibleIndirect(cmd)的调用
@@ -281,8 +281,17 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
             var cmd = CommandBufferPool.Get("HiZ Debug Pass");
+            
+            // 1. debug Hi-Z Texture
             DebugHiZTexture(cmd, renderingData.cameraData.renderer.cameraColorTargetHandle);
             context.ExecuteCommandBuffer(cmd);
+            cmd.Clear();
+            
+            // 2. debug Hi-Z Cull Results
+            DebugHiZCullResults(cmd);
+            context.ExecuteCommandBuffer(cmd);
+            cmd.Clear();
+            
             CommandBufferPool.Release(cmd);
         }
 
@@ -298,6 +307,20 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             cmd.SetGlobalVector("_DebugParams", new Vector4(_settings.debugMipLevel, _settings.debugHeightRatio, 0, 0));
             cmd.SetRenderTarget(colorTarget);
             cmd.DrawProcedural(Matrix4x4.identity, _settings.debugHiZTextureMaterial, 0, MeshTopology.Triangles, 3, 1);
+        }
+
+        private void DebugHiZCullResults(CommandBuffer cmd)
+        {
+            // get visible buffer result
+            var result = new uint[_hiZPassOutput.AppendBuffer.count];
+            _hiZPassOutput.AppendBuffer.GetData(result);
+            string msg = "Visible Object Indices: ";
+            foreach (var index in result)
+            {
+                var obj = _settings.renderObjects[(int)index];
+                Debug.Log($"Visible Object: {obj.name} (Index: {index})");
+                msg += index + ", ";
+            }
         }
     }
 
