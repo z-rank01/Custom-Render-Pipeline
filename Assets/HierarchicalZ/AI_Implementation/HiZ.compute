@@ -2,30 +2,29 @@
 #pragma kernel BuildHiZDown
 #pragma kernel FrustumOcclusionCull
 
-StructuredBuffer<float3> _BoundsCenter;
-StructuredBuffer<float3> _BoundsExtent;
-AppendStructuredBuffer<uint> _VisibleIndices;
-RWStructuredBuffer<uint> _Args;
+StructuredBuffer<float3>        _BoundsCenter;
+StructuredBuffer<float3>        _BoundsExtent;
+AppendStructuredBuffer<uint>    _VisibleIndices;
+RWStructuredBuffer<uint>        _Args;
 
 // 深度来源 + HiZ 构建
-Texture2D<float>      _CameraDepthTexture;
-SamplerState          sampler_PointClamp; // 需在 C# 侧默认 point clamp
+Texture2D<float>                _CameraDepthTexture;
+SamplerState                    sampler_PointClamp; // 需在 C# 侧默认 point clamp
 
 // 源 mip（只读）与目标 mip（写）
-RWTexture2D<float>      _SrcMipTexture;       // 读取上一级 mip (由 C# 侧绑定具体 mip 子资源)
-RWTexture2D<float>    _DstMipTexture;       // 写入当前 mip
+RWTexture2D<float>              _SrcMipTexture;       // 读取上一级 mip (由 C# 侧绑定具体 mip 子资源)
+RWTexture2D<float>              _DstMipTexture;       // 写入当前 mip
 
 // Culling 采样使用整张 HiZ（只读）
-Texture2D<float>      _HiZSampleTex;   
+Texture2D<float>                _HiZSampleTex;   
 
 cbuffer Params
 {
     float4x4 _VP;
     float4x4 _View;
     float4x4 _Proj;
-    float4 _ScreenSize; // w,h,1/w,1/h (原始分辨率)
+    float4 _ScreenParams; // w,h,1/w,1/h (原始分辨率)
     int _InstanceCount;
-    int _DebugDisableOcclusion;
     int _SrcMipLevel;
     int _DstMipLevel;
     int _HiZWidth;
@@ -33,25 +32,7 @@ cbuffer Params
     int _HiZMipCount;
 };
 
-bool FrustumTestAABB(float3 center, float3 extent)
-{
-    [unroll]
-    for(int i=0;i<8;i++)
-    {
-        float3 corner = center + extent * (float3( (i & 1)?1:-1, (i & 2)?1:-1, (i & 4)?1:-1));
-        float4 clip = mul(_VP, float4(corner,1));
-        if( clip.x > -clip.w && clip.x < clip.w &&
-            clip.y > -clip.w && clip.y < clip.w &&
-            clip.z > 0 && clip.z < clip.w ) return true;
-    }
-    return false;
-}
-
-float ProjectDepth01(float3 worldPos)
-{
-    float4 clip = mul(_VP, float4(worldPos,1));
-    return clip.z / clip.w;
-}
+// ------------------------------------------------------------------------------
 
 // 第一层：从 Camera 深度复制 (最大值策略：直接写)
 [numthreads(8,8,1)]
@@ -59,8 +40,8 @@ void BuildHiZFirst(uint3 id:SV_DispatchThreadID)
 {
     uint w = (uint)_HiZWidth;
     uint h = (uint)_HiZHeight;
-    if(id.x >= w || id.y >= h) return;
-    float2 uv = (id.xy + 0.5) / float2(w,h);
+    if (id.x >= w || id.y >= h) return;
+    float2 uv = (id.xy + 0.5) / float2(w, h);
     float d = _CameraDepthTexture.SampleLevel(sampler_PointClamp, uv, 0);
     _DstMipTexture[int2(id.xy)] = d;
 }
@@ -70,12 +51,12 @@ void BuildHiZFirst(uint3 id:SV_DispatchThreadID)
 [numthreads(8,8,1)]
 void BuildHiZDown(uint3 id:SV_DispatchThreadID)
 {
-    uint dstW = max(1, (uint)_HiZWidth  >> _DstMipLevel);
+    uint dstW = max(1, (uint)_HiZWidth >> _DstMipLevel);
     uint dstH = max(1, (uint)_HiZHeight >> _DstMipLevel);
-    if(id.x >= dstW || id.y >= dstH) return;
+    if (id.x >= dstW || id.y >= dstH) return;
 
     // 上一级源尺寸
-    uint srcW = max(1, _HiZWidth  >> _SrcMipLevel);
+    uint srcW = max(1, _HiZWidth >> _SrcMipLevel);
     uint srcH = max(1, _HiZHeight >> _SrcMipLevel);
 
     int2 dst = int2(id.xy);
@@ -83,20 +64,47 @@ void BuildHiZDown(uint3 id:SV_DispatchThreadID)
 
     float m = 0.0; // (如果使用最小深度金字塔可改成 1.0 并用 min)
     [unroll]
-    for(int oy=0; oy<2; oy++)
+    for (int oy = 0; oy < 2; oy++)
     {
         [unroll]
-        for(int ox=0; ox<2; ox++)
+        for (int ox = 0; ox < 2; ox++)
         {
-            int2 sp = basePix + int2(ox,oy);
+            int2 sp = basePix + int2(ox, oy);
             // 处理奇数尺寸时越界 (Clamp) —— 防止访问 src 边界外
             sp.x = min(sp.x, srcW - 1);
             sp.y = min(sp.y, srcH - 1);
-            float v = _SrcMipTexture.Load(int3(sp,0)); // 子资源中的 mip0（即上一层真实 mip）
+            float v = _SrcMipTexture.Load(int3(sp, 0)); // 子资源中的 mip0（即上一层真实 mip）
             m = max(m, v);
         }
     }
     _DstMipTexture[dst] = m;
+}
+
+
+// ------------------------------------------------------------------------------
+
+// 基于AABB的视锥体剔除测试，检查AABB是否与视锥体相交
+bool FrustumTestAABB(float3 center, float3 extent)
+{
+    // 检查AABB的8个角点是否至少有一个在视锥体内
+    [unroll]
+    for (int i = 0; i < 8; i++)
+    {
+        float3 corner = center + extent * float3((i & 1) ? 1 : -1, (i & 2) ? 1 : -1, (i & 4) ? 1 : -1);
+        float4 clip = mul(_VP, float4(corner, 1));
+        if (clip.x > -clip.w && clip.x < clip.w &&
+            clip.y > -clip.w && clip.y < clip.w &&
+            clip.z > 0 && clip.z < clip.w)
+            return true;
+    }
+    return false;
+}
+
+// 将世界空间位置转换为标准化深度值[0,1]
+float ProjectDepth01(float3 worldPos)
+{
+    float4 clip = mul(_VP, float4(worldPos, 1));
+    return clip.z / clip.w;
 }
 
 // 视锥 + 遮挡剔除
@@ -104,23 +112,39 @@ void BuildHiZDown(uint3 id:SV_DispatchThreadID)
 void FrustumOcclusionCull(uint3 id:SV_DispatchThreadID)
 {
     uint index = id.x;
-    if(index >= _InstanceCount) return;
-
+    if (index >= _InstanceCount) return;
+    
     float3 center = _BoundsCenter[index];
     float3 extent = _BoundsExtent[index];
-    if(!FrustumTestAABB(center, extent)) return;
-
-    if(_DebugDisableOcclusion == 0)
-    {
-        float depth01 = ProjectDepth01(center);
-        int mip = max(0, _HiZMipCount - 1);
-        float4 clip = mul(_VP, float4(center,1));
-        float2 ndc = clip.xy / clip.w; // -1..1
-        float2 uv = ndc * 0.5 + 0.5;
-        if(uv.x < 0 || uv.x > 1 || uv.y < 0 || uv.y > 1) return;
-        float hizDepth = _HiZSampleTex.SampleLevel(sampler_PointClamp, uv, mip);
-        if(hizDepth < depth01 - 0.0005) return;
-    }
-
+    
+    // 第一步：视锥体剔除
+    if (!FrustumTestAABB(center, extent)) return;
+    
+    // aabb to ndc space (uv)
+    float4 clipPos = mul(_VP, float4(center, 1));
+    float2 ndc = clipPos.xy / clipPos.w;
+    float2 uv = ndc * 0.5 + 0.5; // 转换到[0,1]UV空间
+    if (uv.x < 0 || uv.x > 1 || uv.y < 0 || uv.y > 1) return;
+    
+    // get object front-face depth
+    float3 viewDir = normalize(center - _View._m03_m13_m23); // 从相机到物体中心的方向
+    float3 frontPoint = center - extent * sign(viewDir); // 最接近相机的AABB点
+    float objectNearDepth = ProjectDepth01(frontPoint);
+    
+    // calculate mip level
+    float screenSize = length(extent) / clipPos.w; // approximate projected size
+    float mipLevel = log2(max(1.0, screenSize * min(_ScreenParams.x, _ScreenParams.y)));
+    mipLevel = clamp(mipLevel, 0, _HiZMipCount - 1);
+    
+    // sample HiZ depth
+    float hiZDepth = _HiZSampleTex.SampleLevel(sampler_PointClamp, uv, mipLevel);
+    
+    // occlusion test
+    const float depthBias = 0.001;
+    if (hiZDepth < objectNearDepth - depthBias) return;
     _VisibleIndices.Append(index);
+    
+    // 更新间接绘制参数计数（原子操作）
+    // 这是可选的，如果在C#端已经设置了这部分逻辑，可以移除
+    //InterlockedAdd(_Args[1], 1);
 }
