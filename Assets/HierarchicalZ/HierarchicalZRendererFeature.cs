@@ -225,19 +225,23 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
             var cmd = CommandBufferPool.Get("HiZ Debug Pass");
-            var colorTarget = renderingData.cameraData.renderer.cameraColorTargetHandle;
-            cmd.Blit(colorTarget.rt, _tempColorTexture);
-            cmd.SetGlobalTexture("_DebugColorInput", _tempColorTexture);
-            cmd.SetGlobalTexture("_DebugHiZTexture", _hiZPassOutput.HiZPyramid);
-            cmd.SetGlobalVector("_DebugParams", new Vector4(_settings.debugMipLevel, _settings.debugHeightRatio, 0, 0));
-            cmd.SetRenderTarget(colorTarget);
-            cmd.DrawProcedural(Matrix4x4.identity, _settings.debugHiZTextureMaterial, 0, MeshTopology.Triangles, 3, 1);
+            DebugHiZTexture(cmd, renderingData.cameraData.renderer.cameraColorTargetHandle);
             context.ExecuteCommandBuffer(cmd);
             CommandBufferPool.Release(cmd);
         }
 
         public override void OnCameraCleanup(CommandBuffer cmd)
         {
+        }
+        
+        private void DebugHiZTexture(CommandBuffer cmd, RTHandle colorTarget)
+        {
+            cmd.Blit(colorTarget.rt, _tempColorTexture);
+            cmd.SetGlobalTexture("_DebugColorInput", _tempColorTexture);
+            cmd.SetGlobalTexture("_DebugHiZTexture", _hiZPassOutput.HiZPyramid);
+            cmd.SetGlobalVector("_DebugParams", new Vector4(_settings.debugMipLevel, _settings.debugHeightRatio, 0, 0));
+            cmd.SetRenderTarget(colorTarget);
+            cmd.DrawProcedural(Matrix4x4.identity, _settings.debugHiZTextureMaterial, 0, MeshTopology.Triangles, 3, 1);
         }
     }
 
