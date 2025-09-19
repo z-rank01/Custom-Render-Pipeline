@@ -61,6 +61,7 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             var cam = renderingData.cameraData.camera;
             _hiZPassResources ??= new HierarchicalZPassResources(width, height, _settings.renderObjects.ToArray(), cam);
             _hiZPassResources.UpdateObjects(_settings.renderObjects.ToArray(), cam);
+            _hiZPassOutput.AllocateOrResizeBuffers(_hiZPassResources.ObjectCount);
             _hiZPassOutput.ReAllocateIfNeeded(width, height, () =>
             {
                 var mipCount = Mathf.FloorToInt(Mathf.Log(Mathf.Max(width, height), 2f)) + 1;
@@ -121,8 +122,16 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             // TODO:
             // 遍历场景内所有物体，筛选出需要进行 Hi-Z 测试的物体（例如根据标签、图层等条件）
             // 更新 _hiZResources 中的对象数据（AABB、变换矩阵等）
-            var objects = GameObject.FindObjectsOfType<Renderer>();
-            _settings.renderObjects = new List<Renderer>(objects);
+            var objects = FindObjectsOfType<Renderer>();
+            if (_settings.renderObjects == null)
+            {
+                _settings.renderObjects = new List<Renderer>(objects);
+            }
+            else
+            {
+                _settings.renderObjects.Clear();
+                _settings.renderObjects.AddRange(objects);
+            }
         }
 
         // 构建 Hi-Z 金字塔占位接口
@@ -184,7 +193,7 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             Matrix4x4 vpMatrix = projMatrix * viewMatrix;
             
             // 重置Append缓冲计数
-            _hiZPassResources.AppendBuffer.SetCounterValue(0);
+            _hiZPassOutput.ResetAppendBufferData();
             
             // 设置计算着色器参数
             var shader = _settings.computeShader;
@@ -201,7 +210,7 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             cmd.SetComputeIntParam(shader, "_HiZMipCount", _hiZPassOutput.MipCount);
             cmd.SetComputeBufferParam(shader, kFrustumOcclusionCull, "_BoundsCenter", _hiZPassResources.AabbCenterBuffer);
             cmd.SetComputeBufferParam(shader, kFrustumOcclusionCull, "_BoundsExtent", _hiZPassResources.AabbExtentBuffer);
-            cmd.SetComputeBufferParam(shader, kFrustumOcclusionCull, "_VisibleIndices", _hiZPassResources.AppendBuffer);
+            cmd.SetComputeBufferParam(shader, kFrustumOcclusionCull, "_VisibleIndices", _hiZPassOutput.AppendBuffer);
             
             // 绑定HiZ贴图
             cmd.SetComputeTextureParam(shader, kFrustumOcclusionCull, "_HiZSampleTex", _hiZPassOutput.HiZPyramid);
@@ -215,13 +224,13 @@ public class HierarchicalZRendererFeature : ScriptableRendererFeature
             
             // 可选：拷贝AppendBuffer内容到可见性结果缓冲区，用于后续处理
             // 注意：如果需要知道有多少物体可见，需要获取AppendBuffer的计数器值
-            // cmd.CopyCounterValue(_hiZPassResources.AppendBuffer, _hiZPassResources.VisibleCountBuffer, 0);
+            cmd.CopyCounterValue(_hiZPassOutput.AppendBuffer, _hiZPassOutput.VisibleResultBuffer, 0);
             
             // 调试输出
 #if UNITY_EDITOR
             if (_settings.debug)
             {
-                cmd.SetGlobalBuffer("_DebugVisibleIndices", _hiZPassResources.AppendBuffer);
+                cmd.SetGlobalBuffer("_DebugVisibleIndices", _hiZPassOutput.VisibleResultBuffer);
             }
 #endif
         }
